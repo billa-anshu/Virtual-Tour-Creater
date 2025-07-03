@@ -9,7 +9,8 @@ import '@photo-sphere-viewer/core/index.css';
 import '@photo-sphere-viewer/virtual-tour-plugin/index.css';
 import '@photo-sphere-viewer/markers-plugin/index.css';
 
-const BACKEND_URL = "http://127.0.0.1:5000";
+const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
+
 
 const PanoramaViewer = () => {
   const containerRef = useRef(null);
