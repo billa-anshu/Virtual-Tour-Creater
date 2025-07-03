@@ -8,6 +8,7 @@
     "@photo-sphere-viewer/gyroscope-plugin": "^5.13.2",
     "@photo-sphere-viewer/markers-plugin": "^5.13.2",
     "@photo-sphere-viewer/virtual-tour-plugin": "^5.13.2",
+    "@supabase/supabase-js": "^2.50.3",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
