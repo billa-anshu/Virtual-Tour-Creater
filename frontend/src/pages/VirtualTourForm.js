@@ -16,17 +16,7 @@ const VirtualTourForm = () => {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setLoginError(''); // Clear previous errors
-    // Simulate a simple login check
-    if (username === 'user' && password === 'password') { // Example credentials
-      setIsLoggedIn(true);
-    } else {
-      setLoginError('Invalid username or password.');
-    }
-  };
-
+ 
   const handleImageUpload = (e, roomName) => {
     const selectedFiles = Array.from(e.target.files);
     const previewPromises = selectedFiles.map((file) => {
