@@ -16,8 +16,10 @@ import numpy as np # Import numpy for image processing
 from stitcher import stitch_images
 
 app = Flask(__name__)
-# CORRECTED: Allow all origins explicitly for debugging, or specify your Vercel domain
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, origins=[
+    "https://virtual-tour-creater.vercel.app",
+    "http://localhost:3000"  # for local development
+])
 
 # --- Configuration for temporary local storage ---
 UPLOAD_FOLDER = 'uploads'
