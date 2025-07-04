@@ -15,7 +15,8 @@ import traceback
 import numpy as np # Import numpy for image processing
 
 app = Flask(__name__)
-CORS(app)
+# CORRECTED: Allow all origins explicitly for debugging, or specify your Vercel domain
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # --- Configuration for temporary local storage ---
 UPLOAD_FOLDER = 'uploads'
@@ -29,7 +30,7 @@ app.config['TEMP_OUTPUT_FOLDER'] = TEMP_OUTPUT_FOLDER
 
 # --- Supabase Configuration ---
 SUPABASE_URL = 'https://fogqiruqayzamorywwkl.supabase.co'
-SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZ3FpcnVxYXl6YW1vcnl3d2tsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NjAxODAsImV4cCI6MjA2NjUzNjE4MH0.fa0st9V3allcHbD-Nklnh9ajYLRXgwSXWMnxBhp81hA'
+SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZvZ3FpcnVxYXl6YW1vcnl3d2tsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5NjAxODAsImV4cCI6MjA2NjUzNjE4MH0.fa0st9V3allcHbD-Nklnh9ajLHRXgwSXWMnxBhp81hA'
 SUPABASE_BUCKET_NAME = "tour-images"
 SUPABASE_AUDIO_BUCKET_NAME = "tour-audio" # New: Supabase bucket for audio
 SUPABASE_PANORAMAS_TABLE = "panoramas"
@@ -392,7 +393,7 @@ def rename_room_endpoint():
         tour_check_res = supabase.table(SUPABASE_TOURS_TABLE).select("start_room").eq("tour_id", tour_id).limit(1).execute()
         if tour_check_res.data and tour_check_res.data[0]['start_room'] == old_room_name:
             supabase.table(SUPABASE_TOURS_TABLE).update({"start_room": new_room_name}).eq("tour_id", tour_id).execute()
-            print("    [rename_room_endpoint] ✅ Start room updated in DB.")
+            print(f"    [rename_room_endpoint] ✅ Start room updated in DB.")
 
         old_file_path_in_bucket = f"{tour_id}/{quote(old_room_name.replace(' ', '_'))}_panorama.jpg"
         new_file_path_in_bucket = f"{tour_id}/{quote(new_room_name.replace(' ', '_'))}_panorama.jpg"
@@ -777,6 +778,41 @@ def upload_audio_endpoint():
         print(f"--- ❌ Error in /upload-audio endpoint: {e} ---")
         traceback.print_exc() # Print full traceback for debugging
         return jsonify({'success': False, 'error': f"Server error uploading audio: {str(e)}"}), 500
+
+@app.route('/delete-audio', methods=['POST'])
+def delete_audio_endpoint():
+    print("\n--- Received POST request to /delete-audio ---")
+    try:
+        data = request.get_json()
+        tour_id = data.get('tourId')
+        room_name = data.get('roomName')
+
+        if not tour_id or not room_name:
+            return jsonify({'success': False, 'error': 'Missing tour ID or room name.'}), 400
+
+        # Delete from Supabase Storage
+        supabase_audio_path = f"{tour_id}/{quote(room_name.replace(' ', '_'))}_audio.mp3"
+        try:
+            supabase.storage.from_(SUPABASE_AUDIO_BUCKET_NAME).remove([supabase_audio_path])
+            print(f"✅ Audio file '{supabase_audio_path}' deleted from Supabase Storage.")
+        except Exception as e:
+            print(f"⚠️ Could not delete audio file from Supabase Storage (might not exist): {e}")
+            # Continue even if file deletion fails, as DB entry might still need to be removed
+
+        # Delete from Supabase Database
+        db_response = supabase.table(SUPABASE_TOUR_AUDIO_TABLE).delete().eq("tour_id", tour_id).eq("room_name", room_name).execute()
+
+        if db_response.data:
+            print(f"✅ Audio entry for room '{room_name}' deleted from Supabase DB.")
+            return jsonify({'success': True, 'message': 'Audio removed successfully!'}), 200
+        else:
+            print(f"❌ Failed to delete audio entry from Supabase DB: {db_response.error}")
+            return jsonify({'success': False, 'error': f"Failed to remove audio from database: {db_response.error}"}), 500
+
+    except Exception as e:
+        print(f"--- ❌ Error in /delete-audio endpoint: {e} ---")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f"Server error deleting audio: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
