@@ -21,7 +21,12 @@ import {
 } from "lucide-react";
 
 const FIXED_MARKER_POSITION = { x: 0.5, y: 0.5 };
+<<<<<<< HEAD
+// CORRECTED: Define your Render Flask backend URL here
+const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
+=======
 const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com"; // Define your Flask backend URL here
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
 const recorder = new MicRecorder({ bitRate: 128 });
 
 const TourEditorPage = () => {
@@ -451,11 +456,185 @@ const TourEditorPage = () => {
           roomName: selectedRoom,
         });
 
+<<<<<<< HEAD
+        if (res.data.success) {
+          // Refetch tour data to get all updated information
+          const tourDataRes = await fetch(`${BACKEND_URL}/get-tour-data/${tourId}`);
+          const tourData = await tourDataRes.json();
+          if (tourData.success) {
+              setPanoramaUrls(tourData.panoramaUrls);
+              setFullPanoramaData(tourData.panoramaUrls); // Update full panorama data
+              setRooms(Object.keys(tourData.panoramaUrls));
+              setEditedNames(Object.fromEntries(Object.keys(tourData.panoramaUrls).map((r) => [r, r])));
+              setStartRoom(tourData.startRoom);
+              setMarkers(tourData.markers || {});
+              setTooltips(tourData.tooltips || {});
+              setRecordedAudio(tourData.audioUrls ? Object.fromEntries(
+                Object.entries(tourData.audioUrls).map(([roomName, url]) => [roomName, { url, blob: null }])
+              ) : {});
+          } else {
+            // If the last room was deleted, the tour data might be empty
+            setPanoramaUrls({});
+            setFullPanoramaData({});
+            setRooms([]);
+            setEditedNames({});
+            setStartRoom(null);
+            setMarkers({});
+            setTooltips({});
+            setRecordedAudio({});
+          }
+
+          if (activeTooltipRoom === roomToDelete) handleCancelTooltipEditMode();
+
+          alert(`✅ Room "${roomToDelete}" removed successfully!`);
+        } else {
+          alert(`❌ Failed to remove room: ${res.data.error || 'Unknown error'}`);
+        }
+
+      } catch (err) {
+        console.error("Error removing room:", err);
+        alert(`❌ Server error while removing room "${roomToDelete}". ${err.message}`);
+      } finally {
+        setDeletingRoom(false);
+      }
+    });
+  };
+
+
+  // --- Marker Add/Remove Logic (Direct Supabase calls, assuming no complex backend logic needed) ---
+  const handleAddMarker = async () => {
+    if (!selectedRoomFrom || !selectedRoomTo) return alert("Please select both 'From' and 'To' rooms.");
+    if (selectedRoomFrom === selectedRoomTo) return alert("A room cannot link to itself. Please choose a different destination room.");
+
+    const existingMarkers = markers[selectedRoomFrom] || [];
+    const exists = existingMarkers.some(
+      (m) => m.linkTo === selectedRoomTo && m.position.x === FIXED_MARKER_POSITION.x && m.position.y === FIXED_MARKER_POSITION.y
+    );
+    if (exists) {
+      alert(`A marker from "${selectedRoomFrom}" to "${selectedRoomTo}" already exists at the default position.`);
+      return;
+    }
+
+    const newMarkerId = uuidv4();
+    const newMarker = {
+      marker_id: newMarkerId,
+      tour_id: tourId,
+      from_room: selectedRoomFrom,
+      to_room: selectedRoomTo,
+      position_x: FIXED_MARKER_POSITION.x,
+      position_y: FIXED_MARKER_POSITION.y,
+    };
+
+    try {
+      const { error } = await supabase.from('markers').insert([newMarker]);
+      if (error) throw error;
+
+      setMarkers((prev) => {
+        const updated = { ...prev };
+        updated[selectedRoomFrom] = updated[selectedRoomFrom] || [];
+        updated[selectedRoomFrom].push({
+          id: newMarkerId,
+          position: { x: newMarker.position_x, y: newMarker.position_y },
+          linkTo: newMarker.to_room
+        });
+        return updated;
+      });
+      setSelectedRoomTo("");
+      alert("Marker added successfully!");
+    } catch (err) {
+      console.error("Error adding marker:", err);
+      alert(`Failed to add marker: ${err.message}`);
+    }
+  };
+
+  const handleRemoveMarker = async (room, linkToRoom) => {
+    showConfirmation(`Are you sure you want to remove the marker from "${room}" linked to "${linkToRoom}"?`, async () => {
+      try {
+        const { error } = await supabase.from('markers')
+          .delete()
+          .eq('tour_id', tourId)
+          .eq('from_room', room)
+          .eq('to_room', linkToRoom)
+          .eq('position_x', FIXED_MARKER_POSITION.x)
+          .eq('position_y', FIXED_MARKER_POSITION.y);
+
+        if (error) throw error;
+
+        setMarkers((prev) => {
+          const updated = { ...prev };
+          if (updated[room]) {
+            updated[room] = updated[room].filter(
+              (marker) => !(marker.linkTo === linkToRoom && marker.position.x === FIXED_MARKER_POSITION.x && marker.position.y === FIXED_MARKER_POSITION.y)
+            );
+          }
+          return updated;
+        });
+        alert("Marker removed successfully!");
+      } catch (err) {
+        console.error("Error removing marker:", err);
+        alert(`Failed to remove marker: ${err.message}`);
+      }
+    });
+  };
+
+  // --- Tooltip Handlers (Direct Supabase calls, assuming no complex backend logic needed) ---
+  const handleSelectRoomForTooltipEdit = (room) => {
+    setActiveTooltipRoom(room);
+    setEditingTooltipId(null);
+    setTooltipContentInput("");
+    setIsPlacingNewTooltip(false);
+    setNewTooltipPosition(null);
+  };
+
+  const handlePrepareNewTooltipPlacement = () => {
+    if (!activeTooltipRoom) return alert("Please select a room to add tooltips to first.");
+    if (!tooltipContentInput.trim()) return alert("Please enter content for the tooltip before placing it.");
+
+    setIsPlacingNewTooltip(true);
+    setEditingTooltipId(null);
+    setNewTooltipPosition(null);
+    alert("Now click on the panorama image below to place the new tooltip at your desired position!");
+  };
+
+  const handlePanoramaClickForTooltip = async (e) => {
+    if (!activeTooltipRoom) return;
+
+    const img = panoramaRef.current;
+    if (!img) return;
+
+    const rect = img.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    if (isPlacingNewTooltip) {
+      const newTooltipId = uuidv4();
+      const newTooltip = {
+        tooltip_id: newTooltipId,
+        tour_id: tourId,
+        room_name: activeTooltipRoom,
+        content: tooltipContentInput.trim(),
+        position_x: x,
+        position_y: y,
+      };
+
+      try {
+        const { error } = await supabase.from('tooltips').insert([newTooltip]);
+        if (error) throw error;
+
+        setTooltips((prev) => {
+          const updated = { ...prev };
+          updated[activeTooltipRoom] = updated[activeTooltipRoom] || [];
+          updated[activeTooltipRoom].push({
+            id: newTooltipId,
+            position: { x: newTooltip.position_x, y: newTooltip.position_y },
+            content: newTooltip.content
+=======
         if (response.data.success) {
           setAudioUrl(prev => {
             const newAudioUrls = { ...prev };
             delete newAudioUrls[selectedRoom];
             return newAudioUrls;
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
           });
           setAudioBlob(null); // Clear any pending recorded blob
           alert("Audio deleted successfully!");
@@ -539,6 +718,166 @@ const TourEditorPage = () => {
     navigate(`/tour/${tourId}`);
   };
 
+<<<<<<< HEAD
+  const handleStartRoomChange = async (e) => {
+    const newStartRoom = e.target.value;
+    setStartRoom(newStartRoom);
+    try {
+      await updateTourInSupabase({ start_room: newStartRoom });
+      alert("Starting room updated successfully!");
+    } catch (err) {
+      console.error("Error updating start room:", err);
+      alert(`Failed to update starting room: ${err.message}`);
+    }
+  };
+
+
+  // --- Common UI for Room Management Card ---
+  const RoomCard = ({ room }) => (
+    <div className="card h-100 border-0 shadow-sm">
+      <div className="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        {editingRoomNames[room] ? (
+          <>
+            <input value={editedNames[room]} onChange={(e) => handleNameInputChange(room, e.target.value)}
+              className="form-control me-2" style={{ maxWidth: "70%" }} />
+            <button className="btn btn-light btn-sm" onClick={() => handleNameSave(room)} disabled={renaming}>
+              {renaming ? <span className="spinner-border spinner-border-sm"></span> : <Check size={16} />}
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="fw-semibold">{room}</span>
+            <button className="btn btn-light btn-sm" onClick={() => handleNameEdit(room)}><Pencil size={16} /></button>
+          </>
+        )}
+        {!editingRoomNames[room] && (
+          <button className="btn btn-light btn-sm ms-2" onClick={() => handleRemoveRoom(room)} disabled={deletingRoom}>
+            {deletingRoom ? <span className="spinner-border spinner-border-sm"></span> : <Trash2 size={16} color="red" />}
+          </button>
+        )}
+      </div>
+      <div className="card-body text-center d-flex flex-column">
+        <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {panoramaUrls[room] ? (
+            <img src={panoramaUrls[room]} alt={`Panorama of ${room}`}
+                  className="img-fluid rounded border mb-2" style={{ objectFit: "cover", width: "100%", height: "auto", maxHeight: "200px" }} />
+          ) : (
+            <p className="text-muted">No panorama image available for {room}.</p>
+          )}
+        </div>
+        {showFileInput[room] ? (
+          <div>
+            <input type="file" accept="image/*" multiple onChange={(e) => handleFileChange(e, room)} className="form-control mb-2" />
+            {selectedFiles[room]?.length > 0 && (
+              <div className="mb-2">
+                <small>Selected files:</small>
+                <div className="row g-2">
+                  {selectedFiles[room].map((item, index) => (
+                    <div key={index} className="col-md-4 position-relative">
+                      <img src={item.preview} alt={item.file.name} className="img-thumbnail"
+                        style={{ maxHeight: '80px', width: '100%', objectFit: 'cover' }} />
+                      <button type="button" className="btn btn-sm btn-danger position-absolute top-0 end-0"
+                        onClick={() => handleRemoveSelectedFile(room, index)}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button className="btn btn-primary btn-sm" onClick={() => handleActualReupload(room)} disabled={uploading}>
+              {uploading ? <span className="spinner-border spinner-border-sm"></span> : <Upload size={16} className="me-1" />} Reupload
+            </button>
+          </div>
+        ) : (
+          <button className="btn btn-outline-secondary btn-sm mt-2" onClick={() => handleReuploadClick(room)}>
+            <Repeat size={16} className="me-1" /> Reupload
+          </button>
+        )}
+
+        {/* Audio Management Section */}
+        <div className="mt-4 pt-3 border-top">
+            <h6 className="mb-3">🎤 Room Audio (MP3)</h6>
+            {recordedAudio[room]?.url && !recordedAudio[room]?.blob && !selectedAudioFile[room] ? (
+                // Audio exists and is already uploaded (from backend fetch)
+                <div className="d-flex align-items-center justify-content-between alert alert-success py-2">
+                    <Music size={20} className="me-2" />
+                    <span>Audio assigned!</span>
+                    <audio controls src={recordedAudio[room].url} className="flex-grow mx-2" />
+                    <button className="btn btn-sm btn-danger ms-auto" onClick={() => handleRemoveAudio(room)}>
+                        <Trash2 size={14} /> Remove
+                    </button>
+                </div>
+            ) : (
+                // No audio assigned, or new audio recorded/selected
+                <div className="d-flex flex-column align-items-center">
+                    {/* Display recorded audio preview */}
+                    {recordedAudio[room]?.blob && (
+                        <div className="alert alert-info d-flex align-items-center justify-content-between w-100 mb-2 py-2">
+                            <Music size={20} className="me-2" />
+                            <span>Recorded Audio</span>
+                            <audio controls src={recordedAudio[room].url} className="flex-grow mx-2" />
+                            <button className="btn btn-sm btn-warning ms-auto" onClick={() => handleRetryAudio(room)}>
+                                <Repeat size={14} /> Retry
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Display selected audio file preview */}
+                    {selectedAudioFile[room] && (
+                        <div className="alert alert-info d-flex align-items-center justify-content-between w-100 mb-2 py-2">
+                            <Music size={20} className="me-2" />
+                            <span>{selectedAudioFile[room].name}</span>
+                            <audio controls src={URL.createObjectURL(selectedAudioFile[room])} className="flex-grow mx-2" />
+                            <button className="btn btn-sm btn-warning ms-auto" onClick={() => handleRetryAudio(room)}>
+                                <XCircle size={14} /> Clear
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Recording controls */}
+                    {!recordedAudio[room]?.blob && !selectedAudioFile[room] && (
+                        <div className="d-flex w-100 justify-content-center mb-2">
+                            {recordingRoom === room ? (
+                                <button className="btn btn-danger me-2" onClick={() => handleStopRecording(room)}>
+                                    <StopCircle size={20} className="me-1" /> Stop Recording
+                                </button>
+                            ) : (
+                                <button className="btn btn-outline-primary me-2" onClick={() => handleStartRecording(room)}>
+                                    <Mic size={20} className="me-1" /> Start Recording
+                                </button>
+                            )}
+                            <span className="align-self-center text-muted">OR</span>
+                            <label className="btn btn-outline-info ms-2">
+                                <Upload size={20} className="me-1" /> Upload MP3
+                                <input type="file" accept="audio/mp3" onChange={(e) => handleAudioFileChange(e, room)} style={{ display: 'none' }} />
+                            </label>
+                        </div>
+                    )}
+
+                    {/* Upload button for recorded/selected audio */}
+                    {(recordedAudio[room]?.blob || selectedAudioFile[room]) && (
+                        <button className="btn btn-success mt-2"
+                                onClick={() => handleUploadAudio(room, recordedAudio[room]?.blob || selectedAudioFile[room])}
+                                disabled={uploadingAudio[room]}>
+                            {uploadingAudio[room] ? <span className="spinner-border spinner-border-sm"></span> : <Upload size={16} className="me-1" />} Upload Audio
+                        </button>
+                    )}
+                </div>
+            )}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (loadingTourData) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100" style={{ backgroundColor: '#f0f2f5' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3">Loading tour data...</p>
+        </div>
+=======
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -551,11 +890,56 @@ const TourEditorPage = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-red-100 text-red-700 p-4 rounded-lg">
         <p className="text-xl">Error: {error}</p>
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
       </div>
     );
   }
 
   return (
+<<<<<<< HEAD
+    <div className="container-fluid py-4" style={{ backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
+      <div className="row mb-4">
+        <div className="col text-center">
+          <h1 className="display-4 fw-bold text-primary">Tour Editor</h1>
+          <p className="lead text-muted">Manage your rooms, navigation, and interactive elements.</p>
+          <Link to={`/tour/${tourId}`} className="btn btn-success btn-lg mt-3">
+            <Music size={20} className="me-2" /> View Live Tour
+          </Link>
+        </div>
+      </div>
+
+      <div className="row">
+        {/* Left Column: Room Management */}
+        <div className="col-lg-6 mb-4">
+          <div className="bg-white p-4 rounded shadow-sm h-100">
+            <h2 className="mb-4 text-primary">Your Rooms</h2>
+            <div className="mb-3">
+              <label htmlFor="startRoomSelect" className="form-label fw-semibold">Set Starting Room:</label>
+              <select id="startRoomSelect" className="form-select" value={startRoom || ''} onChange={handleStartRoomChange}>
+                {rooms.length === 0 ? (
+                  <option value="">No rooms available</option>
+                ) : (
+                  rooms.map((room) => (
+                    <option key={room} value={room}>{room}</option>
+                  ))
+                )}
+              </select>
+            </div>
+            <div className="row row-cols-1 row-cols-md-2 g-4">
+              {rooms.length > 0 ? (
+                rooms.map((room) => (
+                  <div key={room} className="col">
+                    <RoomCard room={room} />
+                  </div>
+                ))
+              ) : (
+                <div className="col-12">
+                  <div className="alert alert-info text-center">
+                    No rooms added yet. Please go back to the Virtual Tour Form to add rooms.
+                  </div>
+                </div>
+              )}
+=======
     <div className="min-h-screen bg-gray-100 p-8 font-inter">
       <div className="max-w-6xl mx-auto bg-white rounded-xl shadow-lg overflow-hidden">
         <div className="p-8">
@@ -580,8 +964,77 @@ const TourEditorPage = () => {
               >
                 <Plus size={20} /> Add Room
               </button>
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
             </div>
+          </div>
+        </div>
 
+<<<<<<< HEAD
+        {/* Right Column: Markers & Tooltips */}
+        <div className="col-lg-6 mb-4">
+          <div className="bg-white p-4 rounded shadow-sm h-100">
+            <h2 className="mb-4 text-primary">Interactive Elements</h2>
+
+            {/* Navigation Markers Section */}
+            <section className="mb-5 p-3 border rounded bg-light">
+              <h4 className="mb-3 text-secondary">🔗 Navigation Markers</h4>
+              <p className="text-muted small">Connect rooms by adding navigation markers. A marker from "Room A" to "Room B" means you can click in Room A to go to Room B.</p>
+              <div className="row g-3 align-items-end mb-3">
+                <div className="col-md-5">
+                  <label htmlFor="fromRoomSelect" className="form-label">From Room:</label>
+                  <select id="fromRoomSelect" className="form-select" value={selectedRoomFrom} onChange={(e) => setSelectedRoomFrom(e.target.value)}>
+                    <option value="">Select a room</option>
+                    {rooms.map((room) => (
+                      <option key={`from-${room}`} value={room}>{room}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-5">
+                  <label htmlFor="toRoomSelect" className="form-label">To Room:</label>
+                  <select id="toRoomSelect" className="form-select" value={selectedRoomTo} onChange={(e) => setSelectedRoomTo(e.target.value)}>
+                    <option value="">Select a room</option>
+                    {rooms.filter(r => r !== selectedRoomFrom).map((room) => (
+                      <option key={`to-${room}`} value={room}>{room}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-2 d-flex justify-content-end">
+                  <button className="btn btn-success" onClick={handleAddMarker} disabled={!selectedRoomFrom || !selectedRoomTo}>
+                    <Plus size={20} /> Add
+                  </button>
+                </div>
+              </div>
+              <h5 className="mt-4">Existing Markers:</h5>
+              {Object.keys(markers).length > 0 ? (
+                <ul className="list-group">
+                  {Object.entries(markers).map(([fromRoom, roomMarkers]) => (
+                    roomMarkers.map((marker) => (
+                      <li key={marker.id} className="list-group-item d-flex justify-content-between align-items-center">
+                        From <span className="fw-semibold">{fromRoom}</span> to <span className="fw-semibold">{marker.linkTo}</span>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMarker(fromRoom, marker.linkTo)}>
+                          <Trash2 size={14} /> Remove
+                        </button>
+                      </li>
+                    ))
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted">No navigation markers added yet.</p>
+              )}
+            </section>
+
+            {/* Tooltips Section */}
+            <section className="p-3 border rounded bg-light">
+              <h4 className="mb-3 text-secondary">💡 Information Tooltips</h4>
+              <p className="text-muted small">Add interactive tooltips to specific rooms. Click on the panorama preview to place them.</p>
+
+              <div className="mb-3">
+                <label htmlFor="tooltipRoomSelect" className="form-label">Select Room for Tooltips:</label>
+                <select id="tooltipRoomSelect" className="form-select" value={activeTooltipRoom || ''} onChange={(e) => handleSelectRoomForTooltipEdit(e.target.value)}>
+                  <option value="">Select a room</option>
+                  {rooms.map((room) => (
+                    <option key={`tooltip-room-${room}`} value={room}>{room}</option>
+=======
             {rooms.length === 0 ? (
               <p className="text-gray-500 text-center py-4">No rooms added yet. Start by adding a new room above!</p>
             ) : (
@@ -781,10 +1234,29 @@ const TourEditorPage = () => {
                     <option key={room} value={room}>
                       {room}
                     </option>
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
                   ))}
                 </select>
               </div>
 
+<<<<<<< HEAD
+              {activeTooltipRoom && (
+                <div className="mb-4">
+                  <label htmlFor="tooltipContent" className="form-label">Tooltip Content:</label>
+                  <textarea id="tooltipContent" className="form-control mb-2" rows="3"
+                    value={tooltipContentInput} onChange={(e) => setTooltipContentInput(e.target.value)}
+                    placeholder="Enter tooltip information here..."></textarea>
+
+                  <div className="d-flex justify-content-between mb-3">
+                    {editingTooltipId ? (
+                      <button className="btn btn-primary me-2" onClick={handleSaveEditedTooltipContent} disabled={!tooltipContentInput.trim()}>
+                        <Check size={16} className="me-1" /> Save Content
+                      </button>
+                    ) : (
+                      <button className="btn btn-info me-2" onClick={handlePrepareNewTooltipPlacement} disabled={!tooltipContentInput.trim()}>
+                        <Plus size={16} className="me-1" /> Place New Tooltip
+                      </button>
+=======
               {selectedRoom && (
                 <section className="mt-6 p-6 bg-gray-50 rounded-xl shadow-inner">
                   <h3 className="text-xl font-semibold text-gray-800 mb-4">
@@ -859,8 +1331,82 @@ const TourEditorPage = () => {
                       </ul>
                     ) : (
                       <p className="text-muted text-gray-500">No markers added for this room yet.</p>
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
                     )}
+                    <button className="btn btn-secondary" onClick={handleCancelTooltipEditMode}>
+                      <XCircle size={16} className="me-1" /> Cancel Edit Mode
+                    </button>
                   </div>
+<<<<<<< HEAD
+
+                  {/* Panorama Preview for Tooltip Placement */}
+                  {panoramaUrls[activeTooltipRoom] && (
+                    <div className="position-relative border rounded overflow-hidden" style={{ height: '250px', cursor: isPlacingNewTooltip || editingTooltipId ? 'crosshair' : 'default' }}>
+                      <img ref={panoramaRef} src={panoramaUrls[activeTooltipRoom]} alt={`Panorama of ${activeTooltipRoom}`}
+                        className="img-fluid w-100 h-100" style={{ objectFit: 'cover' }}
+                        onClick={handlePanoramaClickForTooltip} />
+                      {/* Visual indicator for new tooltip placement */}
+                      {isPlacingNewTooltip && newTooltipPosition && (
+                        <div style={{
+                          position: 'absolute',
+                          left: `${newTooltipPosition.x * 100}%`,
+                          top: `${newTooltipPosition.y * 100}%`,
+                          transform: 'translate(-50%, -50%)',
+                          backgroundColor: 'rgba(255, 0, 0, 0.7)',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          border: '2px solid white',
+                          zIndex: 10,
+                        }} title="New Tooltip Position"></div>
+                      )}
+                      {/* Existing tooltips on preview */}
+                      {(tooltips[activeTooltipRoom] || []).map(tooltip => (
+                        <div key={tooltip.id} style={{
+                          position: 'absolute',
+                          left: `${tooltip.position.x * 100}%`,
+                          top: `${tooltip.position.y * 100}%`,
+                          transform: 'translate(-50%, -50%)',
+                          backgroundColor: 'rgba(0, 123, 255, 0.7)',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          border: `2px solid ${editingTooltipId === tooltip.id ? 'yellow' : 'white'}`,
+                          zIndex: 9,
+                          cursor: 'pointer',
+                        }}
+                          title={tooltip.content}
+                          onClick={() => handleEditTooltip(tooltip.id)}
+                        >
+                          <HelpCircle size={16} color="white" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <h5 className="mt-4">Tooltips for "{activeTooltipRoom}":</h5>
+                  {(tooltips[activeTooltipRoom] && tooltips[activeTooltipRoom].length > 0) ? (
+                    <ul className="list-group">
+                      {tooltips[activeTooltipRoom].map((tooltip) => (
+                        <li key={tooltip.id} className="list-group-item d-flex justify-content-between align-items-center">
+                          <span className="flex-grow-1 me-2">{tooltip.content}</span>
+                          <button className="btn btn-info btn-sm me-2" onClick={() => handleEditTooltip(tooltip.id)}>
+                            <Pencil size={14} /> Edit
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleRemoveTooltip(tooltip.id)}>
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted">No tooltips added for this room yet.</p>
+                  )}
+                </div>
+              )}
+            </section>
+=======
+>>>>>>> 9e9e5c5140200ed35544cd8ab21eb24a4327d893
 
                   {/* Tooltip Section */}
                   <div>
