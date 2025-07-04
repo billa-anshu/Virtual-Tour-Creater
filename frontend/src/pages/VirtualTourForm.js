@@ -2,11 +2,12 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '../Supabase'; // Optional, not used in this file
 
 const VirtualTourForm = () => {
-  const [tourName, setTourName] = useState('');
   const [rooms, setRooms] = useState([]);
   const [roomImages, setRoomImages] = useState({});
+  const [tourName, setTourName] = useState(""); // ✅ New state
   const navigate = useNavigate();
   const tourId = uuidv4();
 
@@ -45,7 +46,7 @@ const VirtualTourForm = () => {
 
   const handleGeneratePanorama = async () => {
     if (!tourName.trim()) {
-      alert("Please enter a tour name.");
+      alert("Please enter a name for your tour.");
       return;
     }
 
@@ -55,89 +56,63 @@ const VirtualTourForm = () => {
     }
 
     const formData = new FormData();
+    formData.append('tourId', tourId);
+    formData.append('tour_name', tourName.trim());
+
     rooms.forEach((room) => {
       roomImages[room]?.forEach((img) => {
         formData.append(`${room}[]`, img.file);
       });
     });
 
-    const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
-
     try {
-      const response = await axios.post(`${BACKEND_URL}/stitch`, formData, {
+      const response = await axios.post("http://localhost:5000/stitch", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
       if (response.data.success) {
-        const panoramaUrls = response.data.panoramaUrls;
-
-        localStorage.setItem(`tourData-${tourId}`, JSON.stringify({ tourName, panoramaUrls, startRoom: rooms[0] }));
-        localStorage.setItem(`tourMarkers-${tourId}`, JSON.stringify({}));
-        localStorage.setItem(`tourTooltips-${tourId}`, JSON.stringify({}));
-
         navigate(`/editor/${tourId}`);
       } else {
         alert("Stitching failed.");
       }
     } catch (err) {
-      console.error("Stitching error:", err);
-      alert("Failed to connect to server.");
+      console.error("Error during panorama generation:", err);
+      alert("Failed to generate tour.");
     }
   };
 
   return (
-    <div
-      style={{
-        backgroundImage:
-          "url('https://images.unsplash.com/photo-1523966211575-eb4a02e5e6f1?auto=format&fit=crop&w=1950&q=80')",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-        minHeight: "100vh",
-        width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div
-        style={{
-          backgroundColor: "rgba(255, 255, 255, 0.2)",
-          borderRadius: "1rem",
-          boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
-          backdropFilter: "blur(10px)",
-          maxWidth: "880px",
-          width: "100%",
-          padding: "40px",
-          color: "white",
-          fontFamily: "sans-serif",
-        }}
-      >
-        <h1 style={{ textAlign: "center", marginBottom: "10px", fontWeight: "600" }}>
-          Build Your Virtual Tour
-        </h1>
+    <div style={{ backgroundColor: "#f8f9fb", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "880px", margin: "0 auto", background: "#fff", padding: "40px", borderRadius: "20px", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}>
+        <h1 style={{ textAlign: "center", marginBottom: "20px", fontWeight: "600" }}>Build Your Virtual Tour</h1>
+        <p style={{ textAlign: "center", color: "#666", marginBottom: "30px" }}>
+          Upload room images and we’ll stitch them into interactive panoramas.
+        </p>
 
-        <input
-          type="text"
-          placeholder="Enter Tour Name"
-          value={tourName}
-          onChange={(e) => setTourName(e.target.value)}
-          style={{
-            margin: "20px auto 40px auto",
-            display: "block",
-            padding: "12px",
-            width: "100%",
-            borderRadius: "8px",
-            border: "1px solid #ccc",
-            backgroundColor: "rgba(255,255,255,0.8)",
-            color: "#333",
-            fontSize: "16px",
-          }}
-        />
+        {/* ✅ Tour Name Input */}
+        <div style={{ marginBottom: "30px" }}>
+          <label htmlFor="tourName" style={{ fontWeight: "500", display: "block", marginBottom: "8px" }}>
+            Tour Name:
+          </label>
+          <input
+            id="tourName"
+            type="text"
+            placeholder="Enter a name for your tour"
+            value={tourName}
+            onChange={(e) => setTourName(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px",
+              borderRadius: "8px",
+              border: "1px solid #ccc",
+              fontSize: "16px",
+            }}
+          />
+        </div>
 
         {rooms.map((room, index) => (
           <div key={index} style={{ marginBottom: "50px" }}>
-            <h3 style={{ borderBottom: "1px solid rgba(255,255,255,0.3)", paddingBottom: "10px", marginBottom: "20px" }}>
+            <h3 style={{ borderBottom: "1px solid #eaeaea", paddingBottom: "10px", marginBottom: "20px" }}>
               Room {index + 1}: <span style={{ fontWeight: 500 }}>{room}</span>
             </h3>
 
@@ -151,9 +126,7 @@ const VirtualTourForm = () => {
                 padding: "10px",
                 borderRadius: "8px",
                 border: "1px solid #ccc",
-                width: "100%",
-                backgroundColor: "rgba(255,255,255,0.8)",
-                color: "#333",
+                width: "100%"
               }}
             />
 
@@ -167,12 +140,16 @@ const VirtualTourForm = () => {
                     borderRadius: "8px",
                     overflow: "hidden",
                     border: "1px solid #ddd",
-                    background: "#fafafa",
+                    background: "#fafafa"
                   }}>
                     <img
                       src={item.preview}
                       alt={`Preview ${room} - ${i}`}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "cover"
+                      }}
                     />
                     <button
                       onClick={() => handleRemoveImage(room, i)}
@@ -185,8 +162,7 @@ const VirtualTourForm = () => {
                         borderRadius: "4px",
                         padding: "2px 8px",
                         fontSize: "12px",
-                        cursor: "pointer",
-                        color: "#333",
+                        cursor: "pointer"
                       }}
                     >
                       Remove
@@ -208,7 +184,7 @@ const VirtualTourForm = () => {
               fontWeight: "500",
               borderRadius: "10px",
               padding: "12px",
-              cursor: "pointer",
+              cursor: "pointer"
             }}
           >
             Add New Room
@@ -224,7 +200,7 @@ const VirtualTourForm = () => {
               borderRadius: "10px",
               padding: "14px",
               fontSize: "16px",
-              cursor: "pointer",
+              cursor: "pointer"
             }}
           >
             Generate Panorama & Start Tour
