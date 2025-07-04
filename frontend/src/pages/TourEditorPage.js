@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 const FIXED_MARKER_POSITION = { x: 0.5, y: 0.5 };
-const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com"; // Define your Flask backend URL here
+const BACKEND_URL = "http://127.0.0.1:5000"; // Define your Flask backend URL here
 const recorder = new MicRecorder({ bitRate: 128 });
 
 const TourEditorPage = () => {
@@ -76,8 +76,30 @@ const TourEditorPage = () => {
         if (response.data.success) {
           const { panoramaUrls, markers, tooltips, startRoom, audioUrls } = response.data;
           setPanoramaUrls(panoramaUrls);
-          setMarkers(markers);
-          setTooltips(tooltips);
+          // Ensure markers and tooltips have position_x and position_y as numbers
+          const sanitizedMarkers = Object.fromEntries(
+            Object.entries(markers).map(([roomName, markerList]) => [
+              roomName,
+              markerList.map(marker => ({
+                ...marker,
+                position_x: typeof marker.position_x === 'number' ? marker.position_x : FIXED_MARKER_POSITION.x,
+                position_y: typeof marker.position_y === 'number' ? marker.position_y : FIXED_MARKER_POSITION.y,
+              }))
+            ])
+          );
+          setMarkers(sanitizedMarkers);
+
+          const sanitizedTooltips = Object.fromEntries(
+            Object.entries(tooltips).map(([roomName, tooltipList]) => [
+              roomName,
+              tooltipList.map(tooltip => ({
+                ...tooltip,
+                position_x: typeof tooltip.position_x === 'number' ? tooltip.position_x : FIXED_MARKER_POSITION.x,
+                position_y: typeof tooltip.position_y === 'number' ? tooltip.position_y : FIXED_MARKER_POSITION.y,
+              }))
+            ])
+          );
+          setTooltips(sanitizedTooltips);
           setAudioUrl(audioUrls); // Set audio URLs
 
           const roomNames = Object.keys(panoramaUrls);
@@ -822,7 +844,9 @@ const TourEditorPage = () => {
                         {markers[selectedRoom].map((marker) => (
                           <li key={marker.id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-gray-200">
                             <span>
-                              Link to: <span className="font-medium text-blue-600">{marker.linkTo}</span> (Pos: x:{marker.position_x.toFixed(2)}, y:{marker.position_y.toFixed(2)})
+                              Link to: <span className="font-medium text-blue-600">{marker.linkTo}</span> (Pos: x:
+                              {typeof marker.position_x === 'number' ? marker.position_x.toFixed(2) : 'N/A'}, y:
+                              {typeof marker.position_y === 'number' ? marker.position_y.toFixed(2) : 'N/A'})
                             </span>
                             <button
                               className="text-red-500 hover:text-red-700 transition"
@@ -886,7 +910,9 @@ const TourEditorPage = () => {
                         {tooltips[selectedRoom].map((tooltip) => (
                           <li key={tooltip.id} className="flex items-center justify-between bg-white p-3 rounded-lg shadow-sm border border-gray-200">
                             <span className="flex-grow mr-2 truncate">
-                              Content: <span className="font-medium text-green-600">{tooltip.content}</span> (Pos: x:{tooltip.position_x.toFixed(2)}, y:{tooltip.position_y.toFixed(2)})
+                              Content: <span className="font-medium text-green-600">{tooltip.content}</span> (Pos: x:
+                              {typeof tooltip.position_x === 'number' ? tooltip.position_x.toFixed(2) : 'N/A'}, y:
+                              {typeof tooltip.position_y === 'number' ? tooltip.position_y.toFixed(2) : 'N/A'})
                             </span>
                             <button
                               className="text-red-500 hover:text-red-700 transition"
