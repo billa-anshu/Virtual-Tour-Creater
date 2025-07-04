@@ -13,6 +13,7 @@ import cv2
 import json
 import traceback
 import numpy as np # Import numpy for image processing
+from stitcher import stitch_images
 
 app = Flask(__name__)
 # CORRECTED: Allow all origins explicitly for debugging, or specify your Vercel domain
@@ -47,18 +48,6 @@ except Exception as e:
     print(f"❌ Error initializing Supabase client: {e}")
     pass
 
-# --- Dummy stitch_images function (replace with your actual stitcher.py) ---
-# Since stitcher.py was mentioned as 'Your stitching logic',
-# I'm providing a dummy one to ensure the Flask app runs without import errors.
-# You should ensure your actual stitcher.py is in the same directory or accessible.
-def stitch_images(image_paths, output_path):
-    print(f"  [DUMMY STITCHER] Simulating stitching for {image_paths}")
-    # In a real scenario, this would perform actual image stitching.
-    # For now, it creates a blank image.
-    dummy_image = np.zeros((500, 1000, 3), dtype=np.uint8) # Create a black image
-    cv2.imwrite(output_path, dummy_image)
-    print(f"  [DUMMY STITCHER] Saved dummy image to {output_path}")
-    return True, dummy_image
 
 def calculate_view_constraints(image):
     """
