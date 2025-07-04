@@ -20,7 +20,8 @@ import {
 } from "lucide-react";
 
 const FIXED_MARKER_POSITION = { x: 0.5, y: 0.5 };
-const BACKEND_URL = "http://127.0.0.1:5000"; // Define your Flask backend URL here
+// CORRECTED: Define your Render Flask backend URL here
+const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
 const recorder = new MicRecorder({ bitRate: 128 });
 
 const TourEditorPage = () => {
@@ -417,7 +418,7 @@ const TourEditorPage = () => {
               setTooltips(tourData.tooltips || {});
               setRecordedAudio(tourData.audioUrls ? Object.fromEntries(
                 Object.entries(tourData.audioUrls).map(([roomName, url]) => [roomName, { url, blob: null }])
-            ) : {});
+              ) : {});
           } else {
             // If the last room was deleted, the tour data might be empty
             setPanoramaUrls({});
@@ -730,7 +731,7 @@ const TourEditorPage = () => {
         <div style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {panoramaUrls[room] ? (
             <img src={panoramaUrls[room]} alt={`Panorama of ${room}`}
-                 className="img-fluid rounded border mb-2" style={{ objectFit: "cover", width: "100%", height: "auto", maxHeight: "200px" }} />
+                  className="img-fluid rounded border mb-2" style={{ objectFit: "cover", width: "100%", height: "auto", maxHeight: "200px" }} />
           ) : (
             <p className="text-muted">No panorama image available for {room}.</p>
           )}
@@ -777,69 +778,59 @@ const TourEditorPage = () => {
                     </button>
                 </div>
             ) : (
-                // No audio assigned, or new audio is being prepared
-                <div className="mb-3">
-                    <label htmlFor={`audioUpload-${room}`} className="form-label visually-hidden">Upload MP3</label>
-                    <input
-                        type="file"
-                        id={`audioUpload-${room}`}
-                        accept="audio/mp3"
-                        onChange={(e) => handleAudioFileChange(e, room)}
-                        className="form-control form-control-sm mb-2"
-                        disabled={recordingRoom === room} // Disable if recording
-                    />
-
-                    {selectedAudioFile[room] && (
-                        <div className="d-flex justify-content-between align-items-center mb-2">
-                            <small className="text-muted">Selected: {selectedAudioFile[room].name}</small>
-                            <button
-                                className="btn btn-sm btn-primary"
-                                onClick={() => handleUploadAudio(room, selectedAudioFile[room])}
-                                disabled={uploadingAudio[room]}
-                            >
-                                {uploadingAudio[room] ? <span className="spinner-border spinner-border-sm"></span> : <Upload size={14} className="me-1" />} Upload MP3
-                            </button>
-                            <button className="btn btn-sm btn-warning ms-2" onClick={() => handleRetryAudio(room)}>
+                // No audio assigned, or new audio recorded/selected
+                <div className="d-flex flex-column align-items-center">
+                    {/* Display recorded audio preview */}
+                    {recordedAudio[room]?.blob && (
+                        <div className="alert alert-info d-flex align-items-center justify-content-between w-100 mb-2 py-2">
+                            <Music size={20} className="me-2" />
+                            <span>Recorded Audio</span>
+                            <audio controls src={recordedAudio[room].url} className="flex-grow mx-2" />
+                            <button className="btn btn-sm btn-warning ms-auto" onClick={() => handleRetryAudio(room)}>
                                 <Repeat size={14} /> Retry
                             </button>
                         </div>
                     )}
 
-                    {!selectedAudioFile[room] && ( // Only show record/upload recorded if no file is selected
-                        <div className="d-flex justify-content-between align-items-center mt-2">
-                            {!recordingRoom || recordingRoom !== room ? (
-                                <button
-                                    className="btn btn-sm btn-info"
-                                    onClick={() => handleStartRecording(room)}
-                                    disabled={uploadingAudio[room]}
-                                >
-                                    <Mic size={14} className="me-1" /> Record Audio
+                    {/* Display selected audio file preview */}
+                    {selectedAudioFile[room] && (
+                        <div className="alert alert-info d-flex align-items-center justify-content-between w-100 mb-2 py-2">
+                            <Music size={20} className="me-2" />
+                            <span>{selectedAudioFile[room].name}</span>
+                            <audio controls src={URL.createObjectURL(selectedAudioFile[room])} className="flex-grow mx-2" />
+                            <button className="btn btn-sm btn-warning ms-auto" onClick={() => handleRetryAudio(room)}>
+                                <XCircle size={14} /> Clear
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Recording controls */}
+                    {!recordedAudio[room]?.blob && !selectedAudioFile[room] && (
+                        <div className="d-flex w-100 justify-content-center mb-2">
+                            {recordingRoom === room ? (
+                                <button className="btn btn-danger me-2" onClick={() => handleStopRecording(room)}>
+                                    <StopCircle size={20} className="me-1" /> Stop Recording
                                 </button>
                             ) : (
-                                <button
-                                    className="btn btn-sm btn-warning"
-                                    onClick={() => handleStopRecording(room)}
-                                    disabled={uploadingAudio[room]}
-                                >
-                                    <StopCircle size={14} className="me-1" /> Stop Recording
+                                <button className="btn btn-outline-primary me-2" onClick={() => handleStartRecording(room)}>
+                                    <Mic size={20} className="me-1" /> Start Recording
                                 </button>
                             )}
-                            {recordedAudio[room]?.blob && !recordingRoom && ( // Show upload/retry for recorded audio
-                                <div className="d-flex align-items-center ms-2">
-                                    <audio controls src={recordedAudio[room].url} className="me-2" style={{ maxWidth: '150px' }} />
-                                    <button
-                                        className="btn btn-sm btn-success me-2"
-                                        onClick={() => handleUploadAudio(room, recordedAudio[room].blob)}
-                                        disabled={uploadingAudio[room]}
-                                    >
-                                        {uploadingAudio[room] ? <span className="spinner-border spinner-border-sm"></span> : <Upload size={14} className="me-1" />} Upload Recorded
-                                    </button>
-                                    <button className="btn btn-sm btn-warning" onClick={() => handleRetryAudio(room)}>
-                                        <Repeat size={14} /> Retry
-                                    </button>
-                                </div>
-                            )}
+                            <span className="align-self-center text-muted">OR</span>
+                            <label className="btn btn-outline-info ms-2">
+                                <Upload size={20} className="me-1" /> Upload MP3
+                                <input type="file" accept="audio/mp3" onChange={(e) => handleAudioFileChange(e, room)} style={{ display: 'none' }} />
+                            </label>
                         </div>
+                    )}
+
+                    {/* Upload button for recorded/selected audio */}
+                    {(recordedAudio[room]?.blob || selectedAudioFile[room]) && (
+                        <button className="btn btn-success mt-2"
+                                onClick={() => handleUploadAudio(room, recordedAudio[room]?.blob || selectedAudioFile[room])}
+                                disabled={uploadingAudio[room]}>
+                            {uploadingAudio[room] ? <span className="spinner-border spinner-border-sm"></span> : <Upload size={16} className="me-1" />} Upload Audio
+                        </button>
                     )}
                 </div>
             )}
@@ -850,262 +841,217 @@ const TourEditorPage = () => {
 
   if (loadingTourData) {
     return (
-      <div className="bg-light min-vh-100 py-4 d-flex justify-content-center align-items-center">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Loading...</span>
+      <div className="d-flex justify-content-center align-items-center vh-100" style={{ backgroundColor: '#f0f2f5' }}>
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3">Loading tour data...</p>
         </div>
-        <p className="ms-2">Loading tour editor data...</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-light min-vh-100 py-4">
-      <div className="container">
-        <div className="card shadow-lg mx-auto mb-5" style={{ maxWidth: "1100px" }}>
-          <div className="card-body">
-            <h2 className="text-center text-primary fw-bold mb-4">🛠️ Tour Editor</h2>
+    <div className="container-fluid py-4" style={{ backgroundColor: '#f0f2f5', minHeight: '100vh' }}>
+      <div className="row mb-4">
+        <div className="col text-center">
+          <h1 className="display-4 fw-bold text-primary">Tour Editor</h1>
+          <p className="lead text-muted">Manage your rooms, navigation, and interactive elements.</p>
+          <Link to={`/tour/${tourId}`} className="btn btn-success btn-lg mt-3">
+            <Music size={20} className="me-2" /> View Live Tour
+          </Link>
+        </div>
+      </div>
 
-            {/* --- Room Management Section --- */}
-            <h4 className="mb-3">📁 Manage Rooms & Panoramas</h4>
-            <div className="row">
+      <div className="row">
+        {/* Left Column: Room Management */}
+        <div className="col-lg-6 mb-4">
+          <div className="bg-white p-4 rounded shadow-sm h-100">
+            <h2 className="mb-4 text-primary">Your Rooms</h2>
+            <div className="mb-3">
+              <label htmlFor="startRoomSelect" className="form-label fw-semibold">Set Starting Room:</label>
+              <select id="startRoomSelect" className="form-select" value={startRoom || ''} onChange={handleStartRoomChange}>
+                {rooms.length === 0 ? (
+                  <option value="">No rooms available</option>
+                ) : (
+                  rooms.map((room) => (
+                    <option key={room} value={room}>{room}</option>
+                  ))
+                )}
+              </select>
+            </div>
+            <div className="row row-cols-1 row-cols-md-2 g-4">
               {rooms.length > 0 ? (
-                rooms.map((room, idx) => (
-                  <div className="col-md-6 mb-4" key={idx}>
+                rooms.map((room) => (
+                  <div key={room} className="col">
                     <RoomCard room={room} />
                   </div>
                 ))
               ) : (
-                <div className="col-12 text-center">
-                    <p className="lead text-muted">No rooms found for this tour. Please go back and create a new tour.</p>
-                    <Link to="/" className="btn btn-primary">Go to Create Tour</Link>
+                <div className="col-12">
+                  <div className="alert alert-info text-center">
+                    No rooms added yet. Please go back to the Virtual Tour Form to add rooms.
+                  </div>
                 </div>
               )}
             </div>
+          </div>
+        </div>
 
-            {/* --- Marker Connection Setup and Display Section --- */}
-            {rooms.length >= 2 && (
-              <>
-                <hr className="my-5" />
-                <section className="mb-5 p-4 border rounded shadow-sm bg-light">
-                  <h4 className="mb-4">🔗 Setup & View Room Connections (Markers)</h4>
-                  <div className="mb-4 p-3 border rounded bg-white">
-                    <h5 className="mb-3">➕ Add New Connection Marker</h5>
-                    <div className="row g-3 align-items-end">
-                      <div className="col-md-6">
-                        <label htmlFor="selectRoomFrom" className="form-label">From Room:</label>
-                        <select id="selectRoomFrom" className="form-select" value={selectedRoomFrom}
-                          onChange={(e) => { setSelectedRoomFrom(e.target.value); if (e.target.value === selectedRoomTo) setSelectedRoomTo(""); }}>
-                          <option value="" disabled>-- Select Current Room --</option>
-                          {rooms.map((room) => (<option key={`from-${room}`} value={room}>{room}</option>))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <label htmlFor="selectRoomTo" className="form-label">To Room:</label>
-                        <select id="selectRoomTo" className="form-select" value={selectedRoomTo}
-                          onChange={(e) => setSelectedRoomTo(e.target.value)} disabled={!selectedRoomFrom}>
-                          <option value="" disabled>-- Select Destination Room --</option>
-                          {rooms.filter(room => room !== selectedRoomFrom).map((room) => (<option key={`to-${room}`} value={room}>{room}</option>))}
-                        </select>
-                      </div>
-                      <div className="col-12 mt-3 text-end">
-                        <button className="btn btn-primary" onClick={handleAddMarker} disabled={!selectedRoomFrom || !selectedRoomTo}>
-                          <Plus className="me-1" size={18} /> Add Marker
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <h5 className="mb-3">Current Connections:</h5>
-                    {rooms.length === 1 ? (<p className="text-muted">No rooms available to display connections.</p>) : (
-                      <ul className="list-group">
-                        {rooms.map((room) => (
-                          <React.Fragment key={`connections-display-${room}`}>
-                            {markers[room]?.length > 0 ? (
-                              markers[room].map((marker, index) => (
-                                <li key={`${room}-${index}`} className="list-group-item d-flex align-items-center justify-content-between">
-                                  <span>**{room}** has a marker linked to **{marker.linkTo}**</span>
-                                  <button className="btn btn-sm btn-danger ms-auto" onClick={() => handleRemoveMarker(room, marker.linkTo)}>
-                                    <Trash2 size={14} /> Remove
-                                  </button>
-                                </li>
-                              ))
-                            ) : (
-                              <li className="list-group-item text-muted">**{room}** has no outgoing connection markers.</li>
-                            )}
-                          </React.Fragment>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </section>
+        {/* Right Column: Markers & Tooltips */}
+        <div className="col-lg-6 mb-4">
+          <div className="bg-white p-4 rounded shadow-sm h-100">
+            <h2 className="mb-4 text-primary">Interactive Elements</h2>
 
-
-                {/* Start Room Selection */}
-                <div className="mb-4 mt-5 p-4 border rounded shadow-sm bg-light">
-                  <label htmlFor="startRoomSelect" className="form-label"><h5>🏁 Select Starting Room for the Tour</h5></label>
-                  <select id="startRoomSelect" className="form-select" value={startRoom || ''} onChange={handleStartRoomChange}>
-                    {rooms.map((room) => (<option key={room} value={room}>{room}</option>))}
+            {/* Navigation Markers Section */}
+            <section className="mb-5 p-3 border rounded bg-light">
+              <h4 className="mb-3 text-secondary">🔗 Navigation Markers</h4>
+              <p className="text-muted small">Connect rooms by adding navigation markers. A marker from "Room A" to "Room B" means you can click in Room A to go to Room B.</p>
+              <div className="row g-3 align-items-end mb-3">
+                <div className="col-md-5">
+                  <label htmlFor="fromRoomSelect" className="form-label">From Room:</label>
+                  <select id="fromRoomSelect" className="form-select" value={selectedRoomFrom} onChange={(e) => setSelectedRoomFrom(e.target.value)}>
+                    <option value="">Select a room</option>
+                    {rooms.map((room) => (
+                      <option key={`from-${room}`} value={room}>{room}</option>
+                    ))}
                   </select>
-                  <p className="text-muted mt-2">This is the first room visitors will see when they start the tour.</p>
                 </div>
-              </>
-            )}
-            {rooms.length < 2 && rooms.length > 0 && (
-              <section className="mt-5 text-center p-4 rounded shadow-sm bg-warning-subtle border border-warning">
-                <p className="lead text-warning-emphasis">Add at least two rooms to set up navigation markers.</p>
-              </section>
-            )}
+                <div className="col-md-5">
+                  <label htmlFor="toRoomSelect" className="form-label">To Room:</label>
+                  <select id="toRoomSelect" className="form-select" value={selectedRoomTo} onChange={(e) => setSelectedRoomTo(e.target.value)}>
+                    <option value="">Select a room</option>
+                    {rooms.filter(r => r !== selectedRoomFrom).map((room) => (
+                      <option key={`to-${room}`} value={room}>{room}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-2 d-flex justify-content-end">
+                  <button className="btn btn-success" onClick={handleAddMarker} disabled={!selectedRoomFrom || !selectedRoomTo}>
+                    <Plus size={20} /> Add
+                  </button>
+                </div>
+              </div>
+              <h5 className="mt-4">Existing Markers:</h5>
+              {Object.keys(markers).length > 0 ? (
+                <ul className="list-group">
+                  {Object.entries(markers).map(([fromRoom, roomMarkers]) => (
+                    roomMarkers.map((marker) => (
+                      <li key={marker.id} className="list-group-item d-flex justify-content-between align-items-center">
+                        From <span className="fw-semibold">{fromRoom}</span> to <span className="fw-semibold">{marker.linkTo}</span>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMarker(fromRoom, marker.linkTo)}>
+                          <Trash2 size={14} /> Remove
+                        </button>
+                      </li>
+                    ))
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted">No navigation markers added yet.</p>
+              )}
+            </section>
 
-            {/* --- Tooltip Management Section --- */}
-            <hr className="my-5" />
-            <section className="mb-5">
-              <h4 className="mb-4">💬 Manage Tooltips (Information Points)</h4>
+            {/* Tooltips Section */}
+            <section className="p-3 border rounded bg-light">
+              <h4 className="mb-3 text-secondary">💡 Information Tooltips</h4>
+              <p className="text-muted small">Add interactive tooltips to specific rooms. Click on the panorama preview to place them.</p>
 
-              {/* Room Selector for Tooltip Edit */}
-              <div className="mb-4">
-                <label htmlFor="roomForTooltipEdit" className="form-label fw-bold">Select Room to Add/Edit Tooltips:</label>
-                <select
-                  id="roomForTooltipEdit"
-                  className="form-select"
-                  value={activeTooltipRoom || ""}
-                  onChange={(e) => handleSelectRoomForTooltipEdit(e.target.value)}
-                >
-                  <option value="" disabled>-- Choose a Room --</option>
+              <div className="mb-3">
+                <label htmlFor="tooltipRoomSelect" className="form-label">Select Room for Tooltips:</label>
+                <select id="tooltipRoomSelect" className="form-select" value={activeTooltipRoom || ''} onChange={(e) => handleSelectRoomForTooltipEdit(e.target.value)}>
+                  <option value="">Select a room</option>
                   {rooms.map((room) => (
-                    <option key={`tooltip-room-select-${room}`} value={room}>{room}</option>
+                    <option key={`tooltip-room-${room}`} value={room}>{room}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Tooltip Editor Section */}
               {activeTooltipRoom && (
-                <div className="mt-4 p-4 border rounded shadow-sm bg-light">
-                  <h5 className="mb-3">Tooltips for: <span className="text-info">{activeTooltipRoom}</span></h5>
+                <div className="mb-4">
+                  <label htmlFor="tooltipContent" className="form-label">Tooltip Content:</label>
+                  <textarea id="tooltipContent" className="form-control mb-2" rows="3"
+                    value={tooltipContentInput} onChange={(e) => setTooltipContentInput(e.target.value)}
+                    placeholder="Enter tooltip information here..."></textarea>
 
-                  {/* Tooltip Input */}
-                  <div className="mb-3">
-                    <label htmlFor="tooltipContentInput" className="form-label">Tooltip Content:</label>
-                    <textarea
-                      id="tooltipContentInput"
-                      className="form-control"
-                      rows="3"
-                      value={tooltipContentInput}
-                      onChange={(e) => setTooltipContentInput(e.target.value)}
-                      placeholder="Enter text for the tooltip..."
-                      disabled={isPlacingNewTooltip}
-                    />
-                  </div>
-
-                  {/* Action Buttons for new tooltip */}
-                  {!editingTooltipId && (
-                    <div className="d-flex justify-content-end mb-3">
-                      <button
-                        className="btn btn-primary"
-                        onClick={handlePrepareNewTooltipPlacement}
-                        disabled={!tooltipContentInput.trim() || isPlacingNewTooltip}
-                      >
-                        <Plus className="me-1" size={18} /> Place New Tooltip
+                  <div className="d-flex justify-content-between mb-3">
+                    {editingTooltipId ? (
+                      <button className="btn btn-primary me-2" onClick={handleSaveEditedTooltipContent} disabled={!tooltipContentInput.trim()}>
+                        <Check size={16} className="me-1" /> Save Content
                       </button>
-                    </div>
-                  )}
-                  {editingTooltipId && (
-                    <div className="d-flex justify-content-end mb-3">
-                      <button
-                        className="btn btn-success me-2"
-                        onClick={handleSaveEditedTooltipContent}
-                        disabled={!tooltipContentInput.trim()}
-                      >
-                        <Check className="me-1" size={18} /> Save Content
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={handleCancelTooltipEditMode}
-                      >
-                        <XCircle className="me-1" size={18} /> Cancel Edit
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Panorama for Tooltip Placement/Repositioning */}
-                  {activeTooltipRoom && (isPlacingNewTooltip || editingTooltipId) && panoramaUrls[activeTooltipRoom] && (
-                    <div className="mb-3 text-center">
-                      <p className="text-muted">
-                        {isPlacingNewTooltip ? "Click on the image below to place the new tooltip." : "Click on the image below to reposition the selected tooltip."}
-                      </p>
-                      <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
-                        <img
-                          ref={panoramaRef}
-                          src={panoramaUrls[activeTooltipRoom]}
-                          alt={`Panorama for ${activeTooltipRoom}`}
-                          onClick={handlePanoramaClickForTooltip}
-                          className="img-fluid border border-primary rounded"
-                          style={{ cursor: "crosshair" }}
-                        />
-                        {newTooltipPosition && isPlacingNewTooltip && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: `${newTooltipPosition.y * 100}%`,
-                              left: `${newTooltipPosition.x * 100}%`,
-                              transform: 'translate(-50%, -50%)',
-                              width: '20px',
-                              height: '20px',
-                              backgroundColor: 'rgba(0, 255, 0, 0.7)',
-                              borderRadius: '50%',
-                              pointerEvents: 'none',
-                              zIndex: 10,
-                            }}
-                          ></div>
-                        )}
-                        {editingTooltipId && (tooltips[activeTooltipRoom] || []).find(t => t.id === editingTooltipId) && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: `${(tooltips[activeTooltipRoom].find(t => t.id === editingTooltipId)?.position.y || 0) * 100}%`,
-                              left: `${(tooltips[activeTooltipRoom].find(t => t.id === editingTooltipId)?.position.x || 0) * 100}%`,
-                              transform: 'translate(-50%, -50%)',
-                              width: '20px',
-                              height: '20px',
-                              backgroundColor: 'rgba(255, 165, 0, 0.7)',
-                              borderRadius: '50%',
-                              pointerEvents: 'none',
-                              zIndex: 10,
-                            }}
-                          ></div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {activeTooltipRoom && !panoramaUrls[activeTooltipRoom] && (
-                    <p className="text-danger">Cannot place tooltip: Panorama image not found for this room.</p>
-                  )}
-
-                  {/* List Existing Tooltips */}
-                  <div className="mt-4">
-                    <h5 className="mb-3">Current Tooltips:</h5>
-                    {(tooltips[activeTooltipRoom]?.length > 0) ? (
-                      <ul className="list-group">
-                        {tooltips[activeTooltipRoom].map((tooltip) => (
-                          <li key={tooltip.id} className="list-group-item d-flex align-items-center justify-content-between">
-                            <span>
-                              "{tooltip.content}" (x: {tooltip.position.x.toFixed(2)}, y: {tooltip.position.y.toFixed(2)})
-                            </span>
-                            <div>
-                              <button className="btn btn-sm btn-info me-2" onClick={() => handleEditTooltip(tooltip.id)}>
-                                <Pencil size={14} /> Edit
-                              </button>
-                              <button className="btn btn-sm btn-danger" onClick={() => handleRemoveTooltip(tooltip.id)}>
-                                <Trash2 size={14} /> Remove
-                              </button>
-                            </div>
-                          </li>
-                        ))}
-                      </ul>
                     ) : (
-                      <p className="text-muted">No tooltips added for this room yet.</p>
+                      <button className="btn btn-info me-2" onClick={handlePrepareNewTooltipPlacement} disabled={!tooltipContentInput.trim()}>
+                        <Plus size={16} className="me-1" /> Place New Tooltip
+                      </button>
                     )}
+                    <button className="btn btn-secondary" onClick={handleCancelTooltipEditMode}>
+                      <XCircle size={16} className="me-1" /> Cancel Edit Mode
+                    </button>
                   </div>
+
+                  {/* Panorama Preview for Tooltip Placement */}
+                  {panoramaUrls[activeTooltipRoom] && (
+                    <div className="position-relative border rounded overflow-hidden" style={{ height: '250px', cursor: isPlacingNewTooltip || editingTooltipId ? 'crosshair' : 'default' }}>
+                      <img ref={panoramaRef} src={panoramaUrls[activeTooltipRoom]} alt={`Panorama of ${activeTooltipRoom}`}
+                        className="img-fluid w-100 h-100" style={{ objectFit: 'cover' }}
+                        onClick={handlePanoramaClickForTooltip} />
+                      {/* Visual indicator for new tooltip placement */}
+                      {isPlacingNewTooltip && newTooltipPosition && (
+                        <div style={{
+                          position: 'absolute',
+                          left: `${newTooltipPosition.x * 100}%`,
+                          top: `${newTooltipPosition.y * 100}%`,
+                          transform: 'translate(-50%, -50%)',
+                          backgroundColor: 'rgba(255, 0, 0, 0.7)',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          border: '2px solid white',
+                          zIndex: 10,
+                        }} title="New Tooltip Position"></div>
+                      )}
+                      {/* Existing tooltips on preview */}
+                      {(tooltips[activeTooltipRoom] || []).map(tooltip => (
+                        <div key={tooltip.id} style={{
+                          position: 'absolute',
+                          left: `${tooltip.position.x * 100}%`,
+                          top: `${tooltip.position.y * 100}%`,
+                          transform: 'translate(-50%, -50%)',
+                          backgroundColor: 'rgba(0, 123, 255, 0.7)',
+                          borderRadius: '50%',
+                          width: '20px',
+                          height: '20px',
+                          border: `2px solid ${editingTooltipId === tooltip.id ? 'yellow' : 'white'}`,
+                          zIndex: 9,
+                          cursor: 'pointer',
+                        }}
+                          title={tooltip.content}
+                          onClick={() => handleEditTooltip(tooltip.id)}
+                        >
+                          <HelpCircle size={16} color="white" style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <h5 className="mt-4">Tooltips for "{activeTooltipRoom}":</h5>
+                  {(tooltips[activeTooltipRoom] && tooltips[activeTooltipRoom].length > 0) ? (
+                    <ul className="list-group">
+                      {tooltips[activeTooltipRoom].map((tooltip) => (
+                        <li key={tooltip.id} className="list-group-item d-flex justify-content-between align-items-center">
+                          <span className="flex-grow-1 me-2">{tooltip.content}</span>
+                          <button className="btn btn-info btn-sm me-2" onClick={() => handleEditTooltip(tooltip.id)}>
+                            <Pencil size={14} /> Edit
+                          </button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleRemoveTooltip(tooltip.id)}>
+                            <Trash2 size={14} /> Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-muted">No tooltips added for this room yet.</p>
+                  )}
                 </div>
               )}
             </section>
