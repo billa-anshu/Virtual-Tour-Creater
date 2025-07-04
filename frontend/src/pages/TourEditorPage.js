@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import axios from "axios";
 import { supabase } from '../Supabase';
 import { v4 as uuidv4 } from 'uuid'; // For generating new marker/tooltip IDs
-import MicRecorder from 'mic-recorderto-mp3';
+import MicRecorder from 'mic-recorder-to-mp3'; // Corrected import path
 import {
   Pencil,
   Check,
@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 const FIXED_MARKER_POSITION = { x: 0.5, y: 0.5 };
-const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com"; // Define your Flask backend URL here
+const BACKEND_URL = "http://127.0.0.1:5000"; // Define your Flask backend URL here
 const recorder = new MicRecorder({ bitRate: 128 });
 
 const TourEditorPage = () => {
@@ -368,7 +368,6 @@ const TourEditorPage = () => {
 
   const stopRecording = async () => {
     try {
-      // CORRECTED: Changed .get ='mp3' to .getMp3()
       const [buffer, blob] = await recorder.stop().getMp3();
       setAudioBlob(blob);
       setIsRecording(false);
