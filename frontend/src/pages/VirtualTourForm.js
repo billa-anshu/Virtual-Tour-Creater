@@ -4,6 +4,7 @@ import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
 
 const VirtualTourForm = () => {
+  const [tourName, setTourName] = useState('');
   const [rooms, setRooms] = useState([]);
   const [roomImages, setRoomImages] = useState({});
   const navigate = useNavigate();
@@ -43,6 +44,11 @@ const VirtualTourForm = () => {
   };
 
   const handleGeneratePanorama = async () => {
+    if (!tourName.trim()) {
+      alert("Please enter a tour name.");
+      return;
+    }
+
     if (rooms.length === 0 || Object.keys(roomImages).length === 0) {
       alert("Please upload at least one image for each room.");
       return;
@@ -64,9 +70,11 @@ const VirtualTourForm = () => {
 
       if (response.data.success) {
         const panoramaUrls = response.data.panoramaUrls;
-        localStorage.setItem(`tourData-${tourId}`, JSON.stringify({ panoramaUrls, startRoom: rooms[0] }));
+
+        localStorage.setItem(`tourData-${tourId}`, JSON.stringify({ tourName, panoramaUrls, startRoom: rooms[0] }));
         localStorage.setItem(`tourMarkers-${tourId}`, JSON.stringify({}));
         localStorage.setItem(`tourTooltips-${tourId}`, JSON.stringify({}));
+
         navigate(`/editor/${tourId}`);
       } else {
         alert("Stitching failed.");
@@ -85,6 +93,7 @@ const VirtualTourForm = () => {
         backgroundSize: "cover",
         backgroundPosition: "center",
         minHeight: "100vh",
+        width: "100%",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -103,12 +112,27 @@ const VirtualTourForm = () => {
           fontFamily: "sans-serif",
         }}
       >
-        <h1 style={{ textAlign: "center", marginBottom: "20px", fontWeight: "600" }}>
+        <h1 style={{ textAlign: "center", marginBottom: "10px", fontWeight: "600" }}>
           Build Your Virtual Tour
         </h1>
-        <p style={{ textAlign: "center", color: "#ddd", marginBottom: "40px" }}>
-          Upload room images and we’ll stitch them into interactive panoramas.
-        </p>
+
+        <input
+          type="text"
+          placeholder="Enter Tour Name"
+          value={tourName}
+          onChange={(e) => setTourName(e.target.value)}
+          style={{
+            margin: "20px auto 40px auto",
+            display: "block",
+            padding: "12px",
+            width: "100%",
+            borderRadius: "8px",
+            border: "1px solid #ccc",
+            backgroundColor: "rgba(255,255,255,0.8)",
+            color: "#333",
+            fontSize: "16px",
+          }}
+        />
 
         {rooms.map((room, index) => (
           <div key={index} style={{ marginBottom: "50px" }}>
