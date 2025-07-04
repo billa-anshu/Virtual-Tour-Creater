@@ -3,218 +3,119 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
 
+const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
+
 const VirtualTourForm = () => {
   const [rooms, setRooms] = useState([]);
   const [roomImages, setRoomImages] = useState({});
   const [tourName, setTourName] = useState("");
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const tourId = uuidv4();
 
   const handleImageUpload = (e, roomName) => {
     const selectedFiles = Array.from(e.target.files);
-    const previewPromises = selectedFiles.map(file => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = e => resolve({ file, preview: e.target.result });
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-    });
-
-    Promise.all(previewPromises).then(results => {
-      setRoomImages(prev => ({
-        ...prev,
-        [roomName]: prev[roomName] ? [...prev[roomName], ...results] : results,
-      }));
-    });
+    const previews = selectedFiles.map(file => ({
+      file,
+      preview: URL.createObjectURL(file)
+    }));
+    setRoomImages(prev => ({
+      ...prev,
+      [roomName]: [...(prev[roomName] || []), ...previews]
+    }));
   };
 
   const handleAddRoom = () => {
-    const newRoomName = prompt("Enter a name for the new room:");
-    if (newRoomName) {
-      setRooms(prev => [...prev, newRoomName]);
+    const newRoom = prompt("Enter room name:");
+    if (newRoom && !rooms.includes(newRoom)) {
+      setRooms(prev => [...prev, newRoom]);
     }
   };
 
-  const handleRemoveImage = (roomName, index) => {
+  const handleRemoveImage = (room, index) => {
     setRoomImages(prev => ({
       ...prev,
-      [roomName]: prev[roomName].filter((_, i) => i !== index),
+      [room]: prev[room].filter((_, i) => i !== index)
     }));
   };
 
   const handleGeneratePanorama = async () => {
     if (!tourName.trim()) {
-      alert("Please enter a name for your tour.");
-      return;
-    }
-
-    if (rooms.length === 0 || Object.keys(roomImages).length === 0) {
-      alert("Please upload at least one image for each room.");
+      alert("Please enter a tour name.");
       return;
     }
 
     const formData = new FormData();
     formData.append("tourId", tourId);
-    formData.append("tour_name", tourName.trim());
+    formData.append("tour_name", tourName);
 
-    rooms.forEach(room => {
-      roomImages[room]?.forEach((img) => {
+    for (const room of rooms) {
+      const images = roomImages[room];
+      if (!images || images.length === 0) {
+        alert(`Please upload images for room: ${room}`);
+        return;
+      }
+      images.forEach(img => {
         formData.append(`${room}[]`, img.file);
       });
-    });
+    }
 
     try {
-      setLoading(true);
-      const response = await axios.post(
-        "https://virtual-tour-creater-backend.onrender.com/stitch",
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data"
-          },
-        }
-      );
+      const res = await axios.post(`${BACKEND_URL}/stitch`, formData, {
+        headers: { "Content-Type": "multipart/form-data" }
+      });
 
-      if (response.data.success) {
+      if (res.data.success) {
         navigate(`/editor/${tourId}`);
       } else {
-        alert("Tour stitching failed. Please try again.");
+        alert(`Stitching failed: ${res.data.error || "Unknown error"}`);
       }
-    } catch (err) {
-      console.error("❌ Error during panorama generation:", err);
-      alert("❌ Stitching failed due to network or server issue.");
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error("Error during panorama generation:", error);
+      alert("Network or server error. Try again later.");
     }
   };
 
   return (
-    <div style={{ backgroundColor: "#f4f6f9", minHeight: "100vh", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "880px", margin: "0 auto", background: "#fff", padding: "40px", borderRadius: "20px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)" }}>
-        <h1 style={{ textAlign: "center", marginBottom: "10px", fontWeight: "600" }}>🏗️ Build Your Virtual Tour</h1>
-        <p style={{ textAlign: "center", color: "#666", marginBottom: "30px" }}>
-          Upload images for each room and we'll stitch them into immersive panoramas.
-        </p>
+    <div style={{ padding: "30px", background: "#f7f9fc", minHeight: "100vh" }}>
+      <div style={{ maxWidth: 800, margin: "auto", background: "white", padding: 30, borderRadius: 12 }}>
+        <h1> Create Your Virtual Tour</h1>
 
-        {/* Tour Name Input */}
-        <div style={{ marginBottom: "30px" }}>
-          <label htmlFor="tourName" style={{ fontWeight: "500", display: "block", marginBottom: "8px" }}>
-            Tour Name:
-          </label>
+        <label style={{ display: "block", marginTop: 20 }}>
+          <strong>Tour Name:</strong>
           <input
-            id="tourName"
             type="text"
-            placeholder="e.g., My Dream House Tour"
             value={tourName}
             onChange={(e) => setTourName(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px",
-              borderRadius: "8px",
-              border: "1px solid #ccc",
-              fontSize: "16px",
-            }}
+            placeholder="e.g., My Smart Home"
+            style={{ width: "100%", padding: 10, marginTop: 8 }}
           />
-        </div>
+        </label>
 
         {rooms.map((room, index) => (
-          <div key={index} style={{ marginBottom: "50px" }}>
-            <h3 style={{ borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "20px" }}>
-              Room {index + 1}: <span style={{ fontWeight: 500 }}>{room}</span>
-            </h3>
-
-            <input
-              type="file"
-              multiple
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, room)}
-              style={{
-                marginBottom: "20px",
-                padding: "10px",
-                borderRadius: "8px",
-                border: "1px solid #ccc",
-                width: "100%"
-              }}
-            />
-
-            {roomImages[room]?.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
-                {roomImages[room].map((item, i) => (
-                  <div key={i} style={{
-                    position: "relative",
-                    width: "150px",
-                    height: "110px",
-                    borderRadius: "8px",
-                    overflow: "hidden",
-                    border: "1px solid #ddd",
-                    background: "#fafafa"
-                  }}>
-                    <img
-                      src={item.preview}
-                      alt={`Preview ${room} - ${i}`}
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover"
-                      }}
-                    />
-                    <button
-                      onClick={() => handleRemoveImage(room, i)}
-                      style={{
-                        position: "absolute",
-                        top: "6px",
-                        right: "6px",
-                        background: "#fff",
-                        border: "1px solid #ccc",
-                        borderRadius: "4px",
-                        padding: "2px 8px",
-                        fontSize: "12px",
-                        cursor: "pointer"
-                      }}
-                    >
-                      ✖
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          <div key={room} style={{ marginTop: 30 }}>
+            <h3>Room {index + 1}: {room}</h3>
+            <input type="file" multiple accept="image/*" onChange={(e) => handleImageUpload(e, room)} />
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+              {(roomImages[room] || []).map((img, i) => (
+                <div key={i} style={{ position: "relative" }}>
+                  <img src={img.preview} style={{ width: 100, height: 70, objectFit: "cover", border: "1px solid #ccc" }} />
+                  <button
+                    onClick={() => handleRemoveImage(room, i)}
+                    style={{ position: "absolute", top: 0, right: 0, background: "red", color: "white", border: "none", padding: "2px 6px", cursor: "pointer" }}
+                  >×</button>
+                </div>
+              ))}
+            </div>
           </div>
         ))}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "40px" }}>
-          <button
-            onClick={handleAddRoom}
-            style={{
-              backgroundColor: "#f0f4ff",
-              border: "1px solid #bdd6ff",
-              color: "#2457a7",
-              fontWeight: "500",
-              borderRadius: "10px",
-              padding: "12px",
-              cursor: "pointer"
-            }}
-          >
-            ➕ Add New Room
+        <div style={{ marginTop: 20 }}>
+          <button onClick={handleAddRoom} style={{ padding: "10px 20px", background: "#007bff", color: "white", border: "none", borderRadius: 4, marginRight: 10 }}>
+             Add Room
           </button>
 
-          <button
-            onClick={handleGeneratePanorama}
-            disabled={loading}
-            style={{
-              backgroundColor: loading ? "#6b7edc" : "#4a6ee0",
-              border: "none",
-              color: "white",
-              fontWeight: "600",
-              borderRadius: "10px",
-              padding: "14px",
-              fontSize: "16px",
-              cursor: loading ? "not-allowed" : "pointer",
-              opacity: loading ? 0.8 : 1
-            }}
-          >
-            {loading ? "⏳ Generating..." : "🚀 Generate Panorama & Start Tour"}
+          <button onClick={handleGeneratePanorama} style={{ padding: "10px 20px", background: "#28a745", color: "white", border: "none", borderRadius: 4 }}>
+            🚀 Generate Tour
           </button>
         </div>
       </div>
