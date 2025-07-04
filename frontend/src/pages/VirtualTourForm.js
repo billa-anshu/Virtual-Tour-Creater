@@ -126,53 +126,7 @@ const VirtualTourForm = () => {
         {!isLoggedIn ? (
           // Login Form
           <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <h2 style={{ color: 'white', marginBottom: '20px' }}>Login to Create Tour</h2>
-            <input
-              type="text"
-              placeholder="Username (e.g., user)"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                border: '1px solid #ccc',
-                backgroundColor: 'rgba(255,255,255,0.8)',
-                color: '#333',
-              }}
-            />
-            <input
-              type="password"
-              placeholder="Password (e.g., password)"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={{
-                padding: '10px',
-                borderRadius: '8px',
-                border: '1px solid #ccc',
-                backgroundColor: 'rgba(255,255,255,0.8)',
-                color: '#333',
-              }}
-            />
-            {loginError && <p style={{ color: 'red', fontSize: '0.9em' }}>{loginError}</p>}
-            <button
-              type="submit"
-              style={{
-                backgroundColor: "#4a6ee0",
-                border: "none",
-                color: "white",
-                fontWeight: "600",
-                borderRadius: "10px",
-                padding: "14px",
-                fontSize: "16px",
-                cursor: "pointer",
-                transition: "background 0.3s ease",
-                boxShadow: "0 4px 10px rgba(0,0,0,0.3)",
-              }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = "#385dc9"}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = "#4a6ee0"}
-            >
-              Login
-            </button>
+        
           </form>
         ) : (
           // Tour Creation Form
