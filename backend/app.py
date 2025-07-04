@@ -226,9 +226,10 @@ def stitch_tour_endpoint():
     try:
         print(f"    [stitch_tour_endpoint] Verifying/Creating tour entry for Tour ID: {tour_id}")
 
-        tour_entry_response = supabase.table(SUPABASE_TOURS_TABLE).select("tour_id").eq("tour_id", tour_id).limit(1).execute()
+        tour_entry_response = supabase.table(SUPABASE_TOURS_TABLE).select("tour_id, start_room").eq("tour_id", tour_id).limit(1).execute()
+        existing_tour_data = tour_entry_response.data[0] if tour_entry_response.data else None
 
-        if not tour_entry_response.data:
+        if not existing_tour_data:
             print(f"    [stitch_tour_endpoint] Tour ID {tour_id} not found in '{SUPABASE_TOURS_TABLE}'. Inserting new tour entry.")
             tour_name = request.form.get('tour_name')
             print(f"    [stitch_tour_endpoint] Received tour_name: {tour_name}")
@@ -236,9 +237,9 @@ def stitch_tour_endpoint():
             insert_tour_data = {"tour_id": tour_id}
             if tour_name:
                 insert_tour_data["tour_name"] = tour_name
+            # Do NOT set start_room here. It will be set after the first panorama is processed.
 
             insert_tour_res = supabase.table(SUPABASE_TOURS_TABLE).insert(insert_tour_data).execute()
-
 
             if not insert_tour_res.data:
                 print(f"    [stitch_tour_endpoint] ❌ Failed to create tour entry for {tour_id}. Error: {insert_tour_res.error}")
@@ -257,6 +258,7 @@ def stitch_tour_endpoint():
             room_files_map[room_name] = request.files.getlist(key)
             print(f"    [stitch_tour_endpoint] Found files for room '{room_name}': {len(room_files_map[room_name])} files.")
 
+        first_room_processed = None
         for room_name, room_files in room_files_map.items():
             print(f"    [stitch_tour_endpoint] Initiating processing for room: {room_name}")
             url, stitched_image = process_room_images(tour_id, room_name, room_files)
@@ -271,6 +273,12 @@ def stitch_tour_endpoint():
             if response.data:
                 room_panorama_urls[room_name] = url
                 print(f"    [stitch_tour_endpoint] ✅ Saved panorama URL to Supabase DB for room: {room_name}. Response: {response.data}")
+
+                # If this is the first room processed and no start_room is set for the tour, set it
+                if first_room_processed is None and (not existing_tour_data or existing_tour_data.get('start_room') is None):
+                    print(f"    [stitch_tour_endpoint] Setting '{room_name}' as start_room for tour '{tour_id}'.")
+                    supabase.table(SUPABASE_TOURS_TABLE).update({"start_room": room_name}).eq("tour_id", tour_id).execute()
+                    first_room_processed = room_name # Mark that a start room has been set
             else:
                 print(f"    [stitch_tour_endpoint] ❌ Failed to save panorama URL to Supabase DB for room: {room_name}. Error: {response.error}")
                 raise Exception(f"Failed to save panorama URL for {room_name} to database: {response.error}")
@@ -389,6 +397,7 @@ def rename_room_endpoint():
         supabase.table(SUPABASE_TOOLTIPS_TABLE).update({"room_name": new_room_name}).eq("tour_id", tour_id).eq("room_name", old_room_name).execute()
         print("    [rename_room_endpoint] ✅ Tooltips updated in DB.")
 
+        # Check and update start_room in SUPABASE_TOURS_TABLE
         print(f"    [rename_room_endpoint] Checking and updating start_room in {SUPABASE_TOURS_TABLE}.")
         tour_check_res = supabase.table(SUPABASE_TOURS_TABLE).select("start_room").eq("tour_id", tour_id).limit(1).execute()
         if tour_check_res.data and tour_check_res.data[0]['start_room'] == old_room_name:
@@ -813,6 +822,35 @@ def delete_audio_endpoint():
         print(f"--- ❌ Error in /delete-audio endpoint: {e} ---")
         traceback.print_exc()
         return jsonify({'success': False, 'error': f"Server error deleting audio: {str(e)}"}), 500
+
+@app.route('/update-start-room', methods=['POST'])
+def update_start_room_endpoint():
+    print("\n--- Received POST request to /update-start-room ---")
+    try:
+        data = request.get_json()
+        tour_id = data.get('tourId')
+        new_start_room = data.get('newStartRoom')
+
+        print(f"    [update_start_room_endpoint] Received tourId: {tour_id}, newStartRoom: {new_start_room}")
+
+        if not tour_id or not new_start_room:
+            print("    [update_start_room_endpoint] Error: Missing tour ID or new start room.")
+            return jsonify({'success': False, 'error': 'Missing tour ID or new start room.'}), 400
+
+        print(f"    [update_start_room_endpoint] Updating start_room for tour '{tour_id}' to '{new_start_room}'.")
+        response = supabase.table(SUPABASE_TOURS_TABLE).update({"start_room": new_start_room}).eq("tour_id", tour_id).execute()
+
+        if response.data:
+            print(f"    [update_start_room_endpoint] ✅ Start room updated successfully in {SUPABASE_TOURS_TABLE}. Response: {response.data}")
+            return jsonify({'success': True, 'message': 'Start room updated successfully.'}), 200
+        else:
+            print(f"    [update_start_room_endpoint] ❌ Failed to update start room. Error: {response.error}")
+            return jsonify({'success': False, 'error': f"Failed to update start room: {response.error}"}), 500
+
+    except Exception as e:
+        print(f"--- ❌ Error in /update-start-room endpoint: {e} ---")
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f"Server error updating start room: {str(e)}"}), 500
 
 
 if __name__ == '__main__':
