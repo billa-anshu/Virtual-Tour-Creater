@@ -3,28 +3,27 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
 
-const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
-
 const VirtualTourForm = () => {
   const [rooms, setRooms] = useState([]);
   const [roomImages, setRoomImages] = useState({});
   const [tourName, setTourName] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const tourId = uuidv4();
 
   const handleImageUpload = (e, roomName) => {
     const selectedFiles = Array.from(e.target.files);
-    const previewPromises = selectedFiles.map((file) => {
+    const previewPromises = selectedFiles.map(file => {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => resolve({ file, preview: e.target.result });
+        reader.onload = e => resolve({ file, preview: e.target.result });
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
     });
 
-    Promise.all(previewPromises).then((results) => {
-      setRoomImages((prev) => ({
+    Promise.all(previewPromises).then(results => {
+      setRoomImages(prev => ({
         ...prev,
         [roomName]: prev[roomName] ? [...prev[roomName], ...results] : results,
       }));
@@ -34,12 +33,12 @@ const VirtualTourForm = () => {
   const handleAddRoom = () => {
     const newRoomName = prompt("Enter a name for the new room:");
     if (newRoomName) {
-      setRooms((prev) => [...prev, newRoomName]);
+      setRooms(prev => [...prev, newRoomName]);
     }
   };
 
   const handleRemoveImage = (roomName, index) => {
-    setRoomImages((prev) => ({
+    setRoomImages(prev => ({
       ...prev,
       [roomName]: prev[roomName].filter((_, i) => i !== index),
     }));
@@ -57,39 +56,49 @@ const VirtualTourForm = () => {
     }
 
     const formData = new FormData();
-    formData.append('tourId', tourId);
-    formData.append('tour_name', tourName.trim());
+    formData.append("tourId", tourId);
+    formData.append("tour_name", tourName.trim());
 
-    rooms.forEach((room) => {
+    rooms.forEach(room => {
       roomImages[room]?.forEach((img) => {
         formData.append(`${room}[]`, img.file);
       });
     });
 
     try {
-      const response = await axios.post(`${BACKEND_URL}/initial-stitch`, formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
+      setLoading(true);
+      const response = await axios.post(
+        "https://virtual-tour-creater-backend.onrender.com/stitch",
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data"
+          },
+        }
+      );
 
       if (response.data.success) {
         navigate(`/editor/${tourId}`);
       } else {
-        alert("Stitching failed.");
+        alert("Tour stitching failed. Please try again.");
       }
     } catch (err) {
-      console.error("Error during panorama generation:", err);
-      alert("Failed to generate tour.");
+      console.error("❌ Error during panorama generation:", err);
+      alert("❌ Stitching failed due to network or server issue.");
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div style={{ backgroundColor: "#f8f9fb", minHeight: "100vh", padding: "40px 20px" }}>
-      <div style={{ maxWidth: "880px", margin: "0 auto", background: "#fff", padding: "40px", borderRadius: "20px", boxShadow: "0 6px 24px rgba(0,0,0,0.08)" }}>
-        <h1 style={{ textAlign: "center", marginBottom: "20px", fontWeight: "600" }}>Build Your Virtual Tour</h1>
+    <div style={{ backgroundColor: "#f4f6f9", minHeight: "100vh", padding: "40px 20px" }}>
+      <div style={{ maxWidth: "880px", margin: "0 auto", background: "#fff", padding: "40px", borderRadius: "20px", boxShadow: "0 8px 32px rgba(0,0,0,0.08)" }}>
+        <h1 style={{ textAlign: "center", marginBottom: "10px", fontWeight: "600" }}>🏗️ Build Your Virtual Tour</h1>
         <p style={{ textAlign: "center", color: "#666", marginBottom: "30px" }}>
-          Upload room images and we’ll stitch them into interactive panoramas.
+          Upload images for each room and we'll stitch them into immersive panoramas.
         </p>
 
+        {/* Tour Name Input */}
         <div style={{ marginBottom: "30px" }}>
           <label htmlFor="tourName" style={{ fontWeight: "500", display: "block", marginBottom: "8px" }}>
             Tour Name:
@@ -97,7 +106,7 @@ const VirtualTourForm = () => {
           <input
             id="tourName"
             type="text"
-            placeholder="Enter a name for your tour"
+            placeholder="e.g., My Dream House Tour"
             value={tourName}
             onChange={(e) => setTourName(e.target.value)}
             style={{
@@ -112,7 +121,7 @@ const VirtualTourForm = () => {
 
         {rooms.map((room, index) => (
           <div key={index} style={{ marginBottom: "50px" }}>
-            <h3 style={{ borderBottom: "1px solid #eaeaea", paddingBottom: "10px", marginBottom: "20px" }}>
+            <h3 style={{ borderBottom: "1px solid #eee", paddingBottom: "8px", marginBottom: "20px" }}>
               Room {index + 1}: <span style={{ fontWeight: 500 }}>{room}</span>
             </h3>
 
@@ -131,12 +140,12 @@ const VirtualTourForm = () => {
             />
 
             {roomImages[room]?.length > 0 && (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "15px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
                 {roomImages[room].map((item, i) => (
                   <div key={i} style={{
                     position: "relative",
-                    width: "160px",
-                    height: "120px",
+                    width: "150px",
+                    height: "110px",
                     borderRadius: "8px",
                     overflow: "hidden",
                     border: "1px solid #ddd",
@@ -157,7 +166,7 @@ const VirtualTourForm = () => {
                         position: "absolute",
                         top: "6px",
                         right: "6px",
-                        background: "#ffffffee",
+                        background: "#fff",
                         border: "1px solid #ccc",
                         borderRadius: "4px",
                         padding: "2px 8px",
@@ -165,7 +174,7 @@ const VirtualTourForm = () => {
                         cursor: "pointer"
                       }}
                     >
-                      Remove
+                      ✖
                     </button>
                   </div>
                 ))}
@@ -174,11 +183,11 @@ const VirtualTourForm = () => {
           </div>
         ))}
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "30px" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px", marginTop: "40px" }}>
           <button
             onClick={handleAddRoom}
             style={{
-              backgroundColor: "#edf3ff",
+              backgroundColor: "#f0f4ff",
               border: "1px solid #bdd6ff",
               color: "#2457a7",
               fontWeight: "500",
@@ -187,23 +196,25 @@ const VirtualTourForm = () => {
               cursor: "pointer"
             }}
           >
-            Add New Room
+            ➕ Add New Room
           </button>
 
           <button
             onClick={handleGeneratePanorama}
+            disabled={loading}
             style={{
-              backgroundColor: "#4a6ee0",
+              backgroundColor: loading ? "#6b7edc" : "#4a6ee0",
               border: "none",
               color: "white",
               fontWeight: "600",
               borderRadius: "10px",
               padding: "14px",
               fontSize: "16px",
-              cursor: "pointer"
+              cursor: loading ? "not-allowed" : "pointer",
+              opacity: loading ? 0.8 : 1
             }}
           >
-            Generate Panorama & Start Tour
+            {loading ? "⏳ Generating..." : "🚀 Generate Panorama & Start Tour"}
           </button>
         </div>
       </div>
