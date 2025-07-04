@@ -2,12 +2,13 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '../Supabase'; // Optional, not used in this file
+
+const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com";
 
 const VirtualTourForm = () => {
   const [rooms, setRooms] = useState([]);
   const [roomImages, setRoomImages] = useState({});
-  const [tourName, setTourName] = useState(""); // ✅ New state
+  const [tourName, setTourName] = useState("");
   const navigate = useNavigate();
   const tourId = uuidv4();
 
@@ -66,7 +67,7 @@ const VirtualTourForm = () => {
     });
 
     try {
-      const response = await axios.post("https://virtual-tour-creater-backend.onrender.com/stitch", formData, {
+      const response = await axios.post(`${BACKEND_URL}/initial-stitch`, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
 
@@ -89,7 +90,6 @@ const VirtualTourForm = () => {
           Upload room images and we’ll stitch them into interactive panoramas.
         </p>
 
-        {/* ✅ Tour Name Input */}
         <div style={{ marginBottom: "30px" }}>
           <label htmlFor="tourName" style={{ fontWeight: "500", display: "block", marginBottom: "8px" }}>
             Tour Name:
