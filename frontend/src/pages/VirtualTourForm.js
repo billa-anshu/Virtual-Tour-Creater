@@ -92,6 +92,7 @@ const VirtualTourForm = () => {
           "url('https://images.unsplash.com/photo-1523966211575-eb4a02e5e6f1?auto=format&fit=crop&w=1950&q=80')",
         backgroundSize: "cover",
         backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
         minHeight: "100vh",
         width: "100%",
         display: "flex",
