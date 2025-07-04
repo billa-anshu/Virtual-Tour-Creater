@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 const FIXED_MARKER_POSITION = { x: 0.5, y: 0.5 };
-const BACKEND_URL = "http://127.0.0.1:5000"; // Define your Flask backend URL here
+const BACKEND_URL = "https://virtual-tour-creater-backend.onrender.com"; // Define your Flask backend URL here
 const recorder = new MicRecorder({ bitRate: 128 });
 
 const TourEditorPage = () => {
