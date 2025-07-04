@@ -368,7 +368,8 @@ const TourEditorPage = () => {
 
   const stopRecording = async () => {
     try {
-      const [buffer, blob] = await recorder.stop().get ='mp3';
+      // CORRECTED: Changed .get ='mp3' to .getMp3()
+      const [buffer, blob] = await recorder.stop().getMp3();
       setAudioBlob(blob);
       setIsRecording(false);
       console.log('Recording stopped', blob);
