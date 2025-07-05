@@ -1,3 +1,4 @@
+import datetime
 import sys
 import os
 from flask import Flask, request, jsonify
@@ -16,10 +17,8 @@ import numpy as np # Import numpy for image processing
 from stitcher import stitch_images
 
 app = Flask(__name__)
-CORS(app, origins=[
-    "https://virtual-tour-creater.vercel.app",
-    "http://localhost:3000"  # for local development
-])
+# CORRECTED: Allow all origins explicitly for debugging, or specify your Vercel domain
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # --- Configuration for temporary local storage ---
 UPLOAD_FOLDER = 'uploads'
@@ -203,86 +202,71 @@ def process_room_images(tour_id, room_name, room_files):
 # --- Flask Routes ---
 
 @app.route('/stitch', methods=['POST'])
-def stitch_tour_endpoint():
-    print("\n--- Received POST request to /stitch ---")
-    room_panorama_urls = {}
-    tour_id = request.form.get('tourId')
 
-    print(f"    [stitch_tour_endpoint] Received tourId: {tour_id}")
-
-    if not tour_id:
-        print("    [stitch_tour_endpoint] Error: Tour ID is missing in request form data.")
-        return jsonify({'success': False, 'error': 'Tour ID is missing. Please provide a tourId.'}), 400
-
+def stitch():
     try:
-        print(f"    [stitch_tour_endpoint] Verifying/Creating tour entry for Tour ID: {tour_id}")
+        tour_id = request.form.get('tourId')
+        tour_name = request.form.get('tour_name')
 
-        tour_entry_response = supabase.table(SUPABASE_TOURS_TABLE).select("tour_id, start_room").eq("tour_id", tour_id).limit(1).execute()
-        existing_tour_data = tour_entry_response.data[0] if tour_entry_response.data else None
+        if not tour_id:
+            return jsonify({"success": False, "error": "Missing tourId"}), 400
 
-        if not existing_tour_data:
-            print(f"    [stitch_tour_endpoint] Tour ID {tour_id} not found in '{SUPABASE_TOURS_TABLE}'. Inserting new tour entry.")
-            tour_name = request.form.get('tour_name')
-            print(f"    [stitch_tour_endpoint] Received tour_name: {tour_name}")
+        print(f"[INFO] Received tour_id: {tour_id}, tour_name: {tour_name}")
+        print(f"[INFO] Form keys: {list(request.form.keys())}")
+        print(f"[INFO] File keys: {list(request.files.keys())}")
 
-            insert_tour_data = {"tour_id": tour_id}
-            if tour_name:
-                insert_tour_data["tour_name"] = tour_name
-            # Do NOT set start_room here. It will be set after the first panorama is processed.
+        panorama_urls = {}
 
-            insert_tour_res = supabase.table(SUPABASE_TOURS_TABLE).insert(insert_tour_data).execute()
+        for room_name in request.files:
+            print(f"[DEBUG] Processing room: {room_name}")
+            files = request.files.getlist(room_name)
+            images = []
 
-            if not insert_tour_res.data:
-                print(f"    [stitch_tour_endpoint] ❌ Failed to create tour entry for {tour_id}. Error: {insert_tour_res.error}")
-                raise Exception(f"Failed to create tour entry in '{SUPABASE_TOURS_TABLE}': {insert_tour_res.error}")
-            print(f"    [stitch_tour_endpoint] ✅ Tour entry created for {tour_id}.")
-        else:
-            print(f"    [stitch_tour_endpoint] Tour ID {tour_id} already exists in '{SUPABASE_TOURS_TABLE}'.")
+            for file in files:
+                print(f"[DEBUG] Reading file: {file.filename}")
+                file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+                image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+                if image is not None:
+                    images.append(image)
 
-        room_files_map = {}
-        if not request.files:
-            print("    [stitch_tour_endpoint] No files found in request.files.")
-            return jsonify({'success': False, 'error': 'No image files uploaded.'}), 400
+            if not images:
+                print(f"[ERROR] No valid images for room: {room_name}")
+                continue
 
-        for key in request.files:
-            room_name = key.rstrip('[]')
-            room_files_map[room_name] = request.files.getlist(key)
-            print(f"    [stitch_tour_endpoint] Found files for room '{room_name}': {len(room_files_map[room_name])} files.")
+            panorama = stitch_images(images)
+            if panorama is None:
+                print(f"[ERROR] Failed to stitch images for room: {room_name}")
+                continue
 
-        first_room_processed = None
-        for room_name, room_files in room_files_map.items():
-            print(f"    [stitch_tour_endpoint] Initiating processing for room: {room_name}")
-            url, stitched_image = process_room_images(tour_id, room_name, room_files)
+            file_name = f"{room_name}_panorama.jpg"
+            save_path = f"/tmp/{file_name}"
+            cv2.imwrite(save_path, panorama)
 
-            print(f"    [stitch_tour_endpoint] Upserting panorama URL to {SUPABASE_PANORAMAS_TABLE} for room: {room_name}")
-            response = supabase.table(SUPABASE_PANORAMAS_TABLE).upsert({
-                "tour_id": tour_id,
-                "room_name": room_name,
-                "panorama_url": url
-            }, on_conflict="tour_id, room_name").execute()
+            with open(save_path, "rb") as f:
+                storage_path = f"{tour_id}/{file_name}"
+                supabase.storage.from_("tour-images").upload(storage_path, f, {"content-type": "image/jpeg"})
 
-            if response.data:
-                room_panorama_urls[room_name] = url
-                print(f"    [stitch_tour_endpoint] ✅ Saved panorama URL to Supabase DB for room: {room_name}. Response: {response.data}")
+            public_url = supabase.storage.from_("tour-images").get_public_url(storage_path)
+            panorama_urls[room_name] = public_url
 
-                # If this is the first room processed and no start_room is set for the tour, set it
-                if first_room_processed is None and (not existing_tour_data or existing_tour_data.get('start_room') is None):
-                    print(f"    [stitch_tour_endpoint] Setting '{room_name}' as start_room for tour '{tour_id}'.")
-                    supabase.table(SUPABASE_TOURS_TABLE).update({"start_room": room_name}).eq("tour_id", tour_id).execute()
-                    first_room_processed = room_name # Mark that a start room has been set
-            else:
-                print(f"    [stitch_tour_endpoint] ❌ Failed to save panorama URL to Supabase DB for room: {room_name}. Error: {response.error}")
-                raise Exception(f"Failed to save panorama URL for {room_name} to database: {response.error}")
+        # Save tour data in DB
+        supabase.table("tour").insert({
+            "tour_id": tour_id,
+            "tour_name": tour_name,
+            "created_at": datetime.now().isoformat(),
+            "panorama_urls": panorama_urls
+        }).execute()
 
-        print("--- All rooms processed and panoramas/metadata handled. Sending success response. ---")
+        print(f"[SUCCESS] Tour created with ID: {tour_id}")
         return jsonify({
-            'success': True,
-            'panoramaUrls': room_panorama_urls,
-            'roomConnections': {}
+            "success": True,
+            "panoramaUrls": panorama_urls,
+            "roomConnections": {}
         })
+
     except Exception as e:
-        print(f"--- ❌ Stitch error in /stitch endpoint: {e} ---")
-        return jsonify({'success': False, 'error': str(e)}), 500
+        print("[ERROR] Exception during stitching:", e)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/restitch-room', methods=['POST'])
 def restitch_room_endpoint():
