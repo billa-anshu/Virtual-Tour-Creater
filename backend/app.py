@@ -209,25 +209,34 @@ def stitch():
         tour_name = request.form.get('tour_name')
 
         if not tour_id:
+            print("[ERROR] No tourId provided")
             return jsonify({"success": False, "error": "Missing tourId"}), 400
 
-        print(f"[INFO] Received tour_id: {tour_id}, tour_name: {tour_name}")
+        print(f"[INFO] Received request for tourId: {tour_id}, tourName: {tour_name}")
         print(f"[INFO] Form keys: {list(request.form.keys())}")
         print(f"[INFO] File keys: {list(request.files.keys())}")
 
         panorama_urls = {}
 
         for room_name in request.files:
-            print(f"[DEBUG] Processing room: {room_name}")
+            print(f"[INFO] Processing room: {room_name}")
             files = request.files.getlist(room_name)
             images = []
 
             for file in files:
-                print(f"[DEBUG] Reading file: {file.filename}")
-                file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-                image = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-                if image is not None:
-                    images.append(image)
+                file_bytes = file.read()
+                if not file_bytes:
+                    print(f"[WARN] Empty file: {file.filename}")
+                    continue
+
+                try:
+                    image = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
+                    if image is not None:
+                        images.append(image)
+                    else:
+                        print(f"[WARN] Could not decode image: {file.filename}")
+                except Exception as e:
+                    print(f"[ERROR] Exception decoding image {file.filename}: {str(e)}")
 
             if not images:
                 print(f"[ERROR] No valid images for room: {room_name}")
@@ -235,29 +244,22 @@ def stitch():
 
             panorama = stitch_images(images)
             if panorama is None:
-                print(f"[ERROR] Failed to stitch images for room: {room_name}")
+                print(f"[ERROR] Stitching failed for room: {room_name}")
                 continue
 
+            # Save and upload to Supabase
             file_name = f"{room_name}_panorama.jpg"
             save_path = f"/tmp/{file_name}"
             cv2.imwrite(save_path, panorama)
 
             with open(save_path, "rb") as f:
-                storage_path = f"{tour_id}/{file_name}"
-                supabase.storage.from_("tour-images").upload(storage_path, f, {"content-type": "image/jpeg"})
+                supabase.storage.from_("tour-images").upload(f"{tour_id}/{file_name}", f, {"content-type": "image/jpeg"})
 
-            public_url = supabase.storage.from_("tour-images").get_public_url(storage_path)
+            public_url = supabase.storage.from_("tour-images").get_public_url(f"{tour_id}/{file_name}")
             panorama_urls[room_name] = public_url
 
-        # Save tour data in DB
-        supabase.table("tour").insert({
-            "tour_id": tour_id,
-            "tour_name": tour_name,
-            "created_at": datetime.now().isoformat(),
-            "panorama_urls": panorama_urls
-        }).execute()
+        print("[SUCCESS] Panoramas generated:", panorama_urls)
 
-        print(f"[SUCCESS] Tour created with ID: {tour_id}")
         return jsonify({
             "success": True,
             "panoramaUrls": panorama_urls,
@@ -265,7 +267,7 @@ def stitch():
         })
 
     except Exception as e:
-        print("[ERROR] Exception during stitching:", e)
+        print("[FATAL ERROR]", str(e))
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/restitch-room', methods=['POST'])
