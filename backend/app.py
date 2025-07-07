@@ -207,31 +207,43 @@ def stitch():
         tour_name = request.form.get("tour_name")
 
         if not tour_id:
-            return jsonify({"success": False, "error": "Tour ID is missing. Please provide a tourId."}), 400
+            return jsonify({"success": False, "error": "Tour ID is missing."}), 400
 
-        print(f"[INFO] Received tour_id: {tour_id}, tour_name: {tour_name}")
+        print(f"[INFO] Stitching request received → tour_id: {tour_id}, tour_name: {tour_name}")
         print(f"[INFO] Form keys: {list(request.form.keys())}")
         print(f"[INFO] File keys: {list(request.files.keys())}")
 
         panorama_urls = {}
 
+        # ✅ STEP 1: Create tour entry first (required for FK)
+        supabase.table("tour").insert({
+            "tour_id": tour_id,
+            "tour_name": tour_name,
+        }).execute()
+        print("[INFO] Tour inserted successfully.")
+
+        # ✅ STEP 2: Process panoramas
         for room_key in request.files:
-            room_name = room_key.replace("[]", "")  # Handle array notation
+            room_name = room_key.replace("[]", "")
             files = request.files.getlist(room_key)
             print(f"[DEBUG] Processing room: {room_name} with {len(files)} files")
 
-            # Call helper function to save, stitch, and upload
             panorama_url, _ = process_room_images(tour_id, room_name, files)
             panorama_urls[room_name] = panorama_url
-            print(f"[SUCCESS] Uploaded panorama for room '{room_name}' → {panorama_url}")
 
-        # Save tour metadata to Supabase
-        supabase.table("tour_index").insert({
-            "tour_id": tour_id,
-            "tour_name": tour_name,
-            "panorama_urls": panorama_urls,
-            "room_connections": {}
-        }).execute()
+            supabase.table("panoramas").insert({
+                "tour_id": tour_id,
+                "room_name": room_name,
+                "panorama_url": panorama_url
+            }).execute()
+
+        # ✅ STEP 3: Update start_room (optional)
+        if panorama_urls:
+            start_room = list(panorama_urls.keys())[0]
+            supabase.table("tour").update({
+                "start_room": start_room
+            }).eq("tour_id", tour_id).execute()
+            print(f"[INFO] Set start room to: {start_room}")
 
         return jsonify({
             "success": True,
@@ -240,9 +252,10 @@ def stitch():
         })
 
     except Exception as e:
-        print(f"[ERROR] Exception during stitching: {str(e)}")
+        print(f"[ERROR] Exception during stitching: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 @app.route('/restitch-room', methods=['POST'])
