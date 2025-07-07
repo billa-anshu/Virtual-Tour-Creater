@@ -202,7 +202,7 @@ def process_room_images(tour_id, room_name, room_files):
 # --- Flask Routes ---
 
 @app.route('/stitch', methods=['POST'])
-@cross_origin()
+
 def stitch():
     try:
         tour_id = request.form.get("tourId")
