@@ -202,7 +202,6 @@ def process_room_images(tour_id, room_name, room_files):
 # --- Flask Routes ---
 
 @app.route('/stitch', methods=['POST'])
-
 def stitch():
     try:
         tour_id = request.form.get("tourId")
@@ -216,48 +215,23 @@ def stitch():
         print(f"[INFO] File keys: {list(request.files.keys())}")
 
         panorama_urls = {}
-        for room_name in request.files:
-            print(f"[DEBUG] Processing room: {room_name}")
-            files = request.files.getlist(room_name)
-            images = []
 
-            for file in files:
-                print(f"[DEBUG] Reading file: {file.filename}")
-                file_bytes = file.read()
-                image = cv2.imdecode(np.frombuffer(file_bytes, np.uint8), cv2.IMREAD_COLOR)
-                if image is not None:
-                    images.append(image)
+        for room_key in request.files:
+            room_name = room_key.replace("[]", "")  # Handle array notation
+            files = request.files.getlist(room_key)
+            print(f"[DEBUG] Processing room: {room_name} with {len(files)} files")
 
-            if not images:
-                print(f"[ERROR] No valid images for room: {room_name}")
-                continue
+            # Call helper function to save, stitch, and upload
+            panorama_url, _ = process_room_images(tour_id, room_name, files)
+            panorama_urls[room_name] = panorama_url
+            print(f"[SUCCESS] Uploaded panorama for room '{room_name}' → {panorama_url}")
 
-            room_clean = room_name.replace("[]", "")
-            file_name = f"{room_clean}_panorama.jpg"
-            output_path = f"/tmp/{file_name}"
-
-            # Call your stitcher.py function
-            from stitcher import stitch_images  # Ensure this matches your structure
-            success, stitched_image = stitch_images(images, output_path)
-
-            if not success:
-                print(f"[ERROR] Stitching failed for room: {room_name}")
-                continue
-
-            # Upload to Supabase
-            with open(output_path, "rb") as f:
-                supabase.storage.from_("tour-images").upload(f"{tour_id}/{file_name}", f, {"content-type": "image/jpeg"})
-
-            public_url = supabase.storage.from_("tour-images").get_public_url(f"{tour_id}/{file_name}")
-            panorama_urls[room_clean] = public_url
-            print(f"[SUCCESS] Uploaded panorama for room '{room_clean}' to: {public_url}")
-
-        # Save to DB (optional)
+        # Save tour metadata to Supabase
         supabase.table("tour_index").insert({
             "tour_id": tour_id,
             "tour_name": tour_name,
             "panorama_urls": panorama_urls,
-            "room_connections": {}  # Let editor handle connections later
+            "room_connections": {}
         }).execute()
 
         return jsonify({
@@ -268,6 +242,7 @@ def stitch():
 
     except Exception as e:
         print(f"[ERROR] Exception during stitching: {str(e)}")
+        traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
 
 
