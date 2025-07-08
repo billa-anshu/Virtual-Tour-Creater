@@ -200,6 +200,8 @@ def process_room_images(tour_id, room_name, room_files):
 
 # --- Flask Routes ---
 
+import time
+
 @app.route('/stitch', methods=['POST'])
 def stitch():
     try:
@@ -216,11 +218,20 @@ def stitch():
         panorama_urls = {}
 
         # ✅ STEP 1: Create tour entry first (required for FK)
-        supabase.table("tour").insert({
+        insert_result = supabase.table("tour").insert({
             "tour_id": tour_id,
             "tour_name": tour_name,
         }).execute()
         print("[INFO] Tour inserted successfully.")
+
+        # ⏳ STEP 1.5: Wait until Supabase reflects tour insert (avoid FK error)
+        for _ in range(5):
+            check = supabase.table("tour").select("tour_id").eq("tour_id", tour_id).execute()
+            if check.data and len(check.data) > 0:
+                print("[INFO] Tour confirmed visible in Supabase.")
+                break
+            print("[INFO] Waiting for Supabase to reflect inserted tour...")
+            time.sleep(0.5)  # sleep 0.5 seconds before retry
 
         # ✅ STEP 2: Process panoramas
         for room_key in request.files:
@@ -237,7 +248,7 @@ def stitch():
                 "panorama_url": panorama_url
             }).execute()
 
-        # ✅ STEP 3: Update start_room (optional)
+        # ✅ STEP 3: Update start_room
         if panorama_urls:
             start_room = list(panorama_urls.keys())[0]
             supabase.table("tour").update({
@@ -255,6 +266,7 @@ def stitch():
         print(f"[ERROR] Exception during stitching: {e}")
         traceback.print_exc()
         return jsonify({"success": False, "error": str(e)}), 500
+
 
 
 
