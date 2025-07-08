@@ -13,6 +13,7 @@ import cv2
 import json
 import traceback
 import numpy as np # Import numpy for image processing
+from stitcher import stitch_images
 
 app = Flask(__name__)
 # CORRECTED: Allow all origins explicitly for debugging, or specify your Vercel domain
@@ -46,7 +47,6 @@ try:
 except Exception as e:
     print(f"❌ Error initializing Supabase client: {e}")
     pass
-
 
 
 def calculate_view_constraints(image):
@@ -853,4 +853,3 @@ if __name__ == '__main__':
     print(f"Supabase Audio Table: {SUPABASE_TOUR_AUDIO_TABLE}") # New: Log audio table
     print("--- Flask Application Ready ---")
     app.run(debug=True, host='0.0.0.0', port=5000)
-
